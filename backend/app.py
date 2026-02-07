@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import yaml
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 
 try:
     from flask_cors import CORS
@@ -101,22 +101,13 @@ def fetch_citibike_task() -> None:
 
 
 @app.route("/")
-def root() -> str:
-    return (
-        "<!DOCTYPE html>"
-        "<html>"
-        "<head><title>FiDi Dash API</title></head>"
-        "<body>"
-        "<h1>FiDi Transit Dashboard API</h1>"
-        "<p>Endpoints:</p>"
-        "<ul>"
-        '<li><a href="/api/subway">/api/subway</a> - Subway arrivals</li>'
-        '<li><a href="/api/citibike">/api/citibike</a> - Citibike status</li>'
-        '<li><a href="/api/health">/api/health</a> - System health</li>'
-        "</ul>"
-        "</body>"
-        "</html>"
-    )
+def index() -> Any:
+    return send_from_directory("../frontend", "index.html")
+
+
+@app.route("/<path:path>")
+def static_files(path: str) -> Any:
+    return send_from_directory("../frontend", path)
 
 
 @app.route("/api/subway")

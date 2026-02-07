@@ -1,0 +1,219 @@
+:root {
+    color-scheme: dark;
+    --color-bg: #0a0a0a;
+    --color-surface: #1a1a1a;
+    --color-surface-raised: #252525;
+    --color-text: #e0e0e0;
+    --color-text-muted: #999999;
+    --color-border: #333333;
+    --color-accent: #4a9eff;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 20px;
+    max-width: 1080px;
+    margin-left: auto;
+    margin-right: auto;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 18px;
+    line-height: 1.4;
+}
+
+h1,
+h2,
+h3,
+p {
+    margin: 0;
+}
+
+h1 {
+    font-size: 48px;
+    letter-spacing: 0.5px;
+}
+
+h2 {
+    font-size: 36px;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+}
+
+h3 {
+    font-size: 24px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0;
+    border-bottom: 2px solid var(--color-border);
+}
+
+.staleness-indicator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 20px;
+    color: var(--color-text-muted);
+}
+
+.staleness-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.staleness-dot.healthy {
+    background: #00ff00;
+}
+
+.staleness-dot.warning {
+    background: #ffaa00;
+}
+
+.staleness-dot.critical {
+    background: #ff0000;
+}
+
+section {
+    margin: 40px 0;
+    padding: 24px;
+    background: var(--color-surface);
+    border-radius: 12px;
+}
+
+.station-group {
+    margin: 30px 0;
+    padding: 20px;
+    background: var(--color-surface-raised);
+    border-radius: 8px;
+}
+
+.station-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.station-name {
+    font-size: 28px;
+}
+
+.line-badges {
+    display: flex;
+    gap: 10px;
+}
+
+.line-badge,
+.line-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 32px;
+    text-transform: uppercase;
+}
+
+.arrivals {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.arrival {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+}
+
+.time {
+    font-size: 56px;
+    font-weight: 700;
+}
+
+.citibike-station {
+    margin: 30px 0;
+    padding: 20px;
+    background: var(--color-surface-raised);
+    border-radius: 8px;
+}
+
+.dock-name {
+    font-size: 24px;
+    margin-bottom: 16px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 30px;
+    background: var(--color-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00ff88, #00cc66);
+}
+
+.progress-fill.critical {
+    background: linear-gradient(90deg, #ff4444, #cc0000);
+}
+
+.dock-status {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.dock-counts {
+    display: flex;
+    justify-content: space-between;
+    font-size: 22px;
+    color: var(--color-text-muted);
+}
+
+footer {
+    padding: 20px 0 10px;
+    border-top: 2px solid var(--color-border);
+    color: var(--color-text-muted);
+    font-size: 20px;
+}
+
+.line-1 { background: #ee352e; }
+.line-2 { background: #ee352e; }
+.line-3 { background: #ee352e; }
+.line-4 { background: #00933c; }
+.line-5 { background: #00933c; }
+.line-6 { background: #00933c; }
+.line-7 { background: #b933ad; }
+.line-a { background: #0039a6; }
+.line-c { background: #0039a6; }
+.line-e { background: #0039a6; }
+.line-b { background: #ff6319; }
+.line-d { background: #ff6319; }
+.line-f { background: #ff6319; }
+.line-m { background: #ff6319; }
+.line-g { background: #6cbe45; }
+.line-j { background: #996633; }
+.line-z { background: #996633; }
+.line-l { background: #a7a9ac; }
+.line-n { background: #fccc0a; }
+.line-q { background: #fccc0a; }
+.line-r { background: #fccc0a; }
+.line-w { background: #fccc0a; }
+.line-s { background: #808183; }
