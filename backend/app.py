@@ -55,21 +55,45 @@ def load_config() -> Dict[str, Any]:
     return data
 
 
+def _safe_int(value: Any, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
 def _get_display_thresholds(config: Dict[str, Any]) -> Tuple[int, int]:
-    display = config.get("display", {})
-    warning = max(0, int(display.get("staleness_warning_sec", 60)))
-    critical = max(0, int(display.get("staleness_critical_sec", 120)))
+    display = config.get("display", {}) if isinstance(config.get("display"), dict) else {}
+    warning = max(0, _safe_int(display.get("staleness_warning_sec", 60), 60))
+    critical = max(0, _safe_int(display.get("staleness_critical_sec", 120), 120))
     if critical < warning:
         critical = warning
     return warning, critical
 
 
 def _get_poll_intervals(config: Dict[str, Any]) -> Tuple[int, int]:
-    subway = config.get("subway", {})
-    citibike = config.get("citibike", {})
-    subway_interval = int(subway.get("poll_interval_seconds", 30))
-    citibike_interval = int(citibike.get("poll_interval_seconds", 60))
+    subway = config.get("subway", {}) if isinstance(config.get("subway"), dict) else {}
+    citibike = config.get("citibike", {}) if isinstance(config.get("citibike"), dict) else {}
+    subway_interval = _safe_int(subway.get("poll_interval_seconds", 30), 30)
+    citibike_interval = _safe_int(citibike.get("poll_interval_seconds", 60), 60)
     return subway_interval, citibike_interval
+
+
+def _build_frontend_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    display = config.get("display", {}) if isinstance(config.get("display"), dict) else {}
+    location = config.get("location", {}) if isinstance(config.get("location"), dict) else {}
+    return {
+        "display": {
+            "refresh_interval_ms": max(1000, _safe_int(display.get("refresh_interval_ms", 15000), 15000)),
+            "staleness_warning_sec": max(0, _safe_int(display.get("staleness_warning_sec", 60), 60)),
+            "staleness_critical_sec": max(0, _safe_int(display.get("staleness_critical_sec", 120), 120)),
+            "theme": display.get("theme"),
+            "orientation": display.get("orientation"),
+        },
+        "location": {
+            "name": location.get("name"),
+        },
+    }
 
 
 def _compute_staleness_seconds(last_updated: Any, now: int) -> Optional[int]:
@@ -153,6 +177,12 @@ def api_health() -> Any:
     return jsonify(status)
 
 
+@app.route("/api/config")
+def api_config() -> Any:
+    config = load_config()
+    return jsonify({"success": True, "data": _build_frontend_config(config)})
+
+
 def _log_startup_health(config: Dict[str, Any]) -> None:
     warning, critical = _get_display_thresholds(config)
     status = get_health_status(cache, warning, critical)
@@ -188,7 +218,8 @@ def main() -> None:
     _log_startup_health(config)
 
     logger.info("Flask server starting on http://localhost:5000")
-    app.run(host="127.0.0.1", port=5000)
+    port = int(__import__("os").environ.get("PORT", "5000"))
+    app.run(host="127.0.0.1", port=port)
 
 
 if __name__ == "__main__":
