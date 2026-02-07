@@ -266,6 +266,90 @@ function buildSubwayMarkup(arrivals, stationBlocks = null) {
         .join('');
 }
 
+function buildSubwayMarkupFromConfig(arrivals, stationBlocks) {
+    const sanitizedArrivals = (Array.isArray(arrivals) ? arrivals : [])
+        .map((arrival) => {
+            const minutes = clampNumber(Number(arrival.minutes_until), 0, 999);
+            if (minutes === null) return null;
+            return {
+                line: arrival.line || '?',
+                station: arrival.station || 'Unknown station',
+                station_block_id: arrival.station_block_id || arrival.station_block || null,
+                direction: arrival.direction || arrival.direction_code || 'Unknown',
+                direction_label: arrival.direction_label || null,
+                direction_destination: arrival.direction_destination || null,
+                minutes_until: minutes,
+            };
+        })
+        .filter(Boolean);
+
+    const grouped = groupByStationBlockAndDirection(sanitizedArrivals);
+
+    // Render blocks in config order, even if empty
+    return (Array.isArray(stationBlocks) ? stationBlocks : []).map((block) => {
+        const blockId = block.id || null;
+        const stationName = block.name || 'Unknown station';
+        const lines = Array.isArray(block.lines) ? block.lines : [];
+
+        // note for rector_rw when N is currently serving
+        let serviceNote = '';
+        if (String(blockId) === 'rector_rw') {
+            const dirs = grouped[blockId]?.directions || {};
+            const all = Object.values(dirs).flat();
+            const hasN = all.some((t) => String(t.line).toUpperCase() === 'N');
+            if (hasN) serviceNote = ' (N currently serving)';
+        }
+
+        const lineBadges = Array.from(new Set(lines.map((l) => String(l).toUpperCase())))
+            .map((line) => {
+                const lineClass = normalizeLineClass(line);
+                return `<span class="line-badge line-${lineClass}">${escapeHtml(line)}</span>`;
+            })
+            .join('');
+
+        const directions = Array.isArray(block.directions) && block.directions.length > 0 ? block.directions : [
+            { code: 'N', label: 'Uptown' },
+            { code: 'S', label: 'Downtown' },
+        ];
+
+        const directionEntries = directions.map((dir) => {
+            const code = String(dir.code || '').toUpperCase();
+            const label = dir.label || null;
+            const destination = dir.destination || null;
+            const trains = (grouped[blockId]?.directions?.[code] || []).slice().sort((a,b) => a.minutes_until - b.minutes_until).slice(0,2);
+
+            const heading = formatDirectionHeading(lines, code, label, destination ? [destination] : null);
+            const arrivalsHtml = trains.length === 0
+                ? `<div class="arrival empty"><span class="time muted">—</span></div>`
+                : trains.map((train) => {
+                    const lineClass = normalizeLineClass(train.line);
+                    const urgencyClass = getUrgencyClass(train.minutes_until);
+                    return `
+                        <div class="arrival ${urgencyClass}">
+                            <span class="line-indicator line-${lineClass}">${escapeHtml(String(train.line).toUpperCase())}</span>
+                            <span class="direction-inline">${escapeHtml(heading)}</span>
+                            <span class="time">${formatMinutes(train.minutes_until)}</span>
+                        </div>`;
+                }).join('');
+
+            return `
+                <div class="direction-group">
+                    ${arrivalsHtml}
+                </div>`;
+        }).join('');
+
+        return `
+            <div class="station-group">
+                <div class="station-header">
+                    <div class="line-badges">${lineBadges}</div>
+                    <span class="station-name">${escapeHtml(stationName)}${escapeHtml(serviceNote)}</span>
+                </div>
+                <div class="direction-groups">${directionEntries}</div>
+            </div>`;
+    }).join('');
+}
+
+
 function buildCitibikeMarkup(stations) {
     if (!Array.isArray(stations) || stations.length === 0) {
         return '<p class="no-data">No stations configured</p>';

@@ -302,3 +302,24 @@ footer {
     font-size: 14px;
     margin-top: 8px;
 }
+
+/* 4C: inline direction label between badge and time */
+.arrival {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.direction-inline {
+  font-size: 20px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.time.muted {
+  color: var(--color-text-muted);
+  font-size: 42px;
+}
