@@ -44,7 +44,7 @@ citibike:
   stations:
   - name: Broadway & Exchange Pl
     station_id: ''
-  - name: Second Station
+  - name: Broadway & Liberty St
     station_id: ''
 display:
   theme: dark
