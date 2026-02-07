@@ -1,5 +1,9 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# Local/cache data (do not commit GTFS extracts)
 data/mta-static/*.zip
+data/mta-static/*.txt
+
 venv/
