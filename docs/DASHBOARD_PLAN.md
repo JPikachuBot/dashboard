@@ -222,9 +222,10 @@ Portrait is the better choice. Train arrivals are a naturally vertical list
 1. **Largest text = next train arrival.** "2 min" should be readable from across the room.
 2. **Color coding for urgency.** Green = plenty of time. Yellow = hurry. Red = you missed it / about to miss it.
 3. **Staleness is visible.** The "Updated Xs ago" badge turns yellow at 60s, red at 120s.
-4. **Dark theme default.** This display runs 24/7. Dark theme saves power and doesn't light up your apartment like a lighthouse at 3am.
-5. **No interaction required.** Zero buttons, zero clicks. It just runs.
-6. **Train line colors match MTA branding.** 4/5 = green, 2/3 = red, J = brown, 1 = red, R/W = yellow, A/C = blue. New Yorkers read these colors instinctively.
+4. **Direction clarity > everything.** Every station block must show *what direction/destination* the times correspond to (e.g., "Uptown → Van Cortlandt Park", "J → Jamaica Center"). No guessing.
+5. **Dark theme default.** This display runs 24/7. Dark theme saves power and doesn't light up your apartment like a lighthouse at 3am.
+6. **No interaction required.** Zero buttons, zero clicks. It just runs.
+7. **Train line colors match MTA branding.** 4/5 = green, 2/3 = red, J = brown, 1 = red, R/W = yellow, A/C = blue. New Yorkers read these colors instinctively.
 
 ---
 
@@ -318,6 +319,13 @@ Following the prescribed loop: Ideate → Design → Plan → Execute → Test �
 | Edge states: no data, API down, stale data | 1h |
 
 **Acceptance criteria:** Open `localhost:5000` in a browser, see a beautiful dashboard with live data.
+
+#### Milestone 4C (post-prototype UX fixes)
+Now that a working prototype exists, apply live feedback before Pi deployment:
+- Split Wall St into distinct blocks for **4/5** vs **2/3** (no accidental merging)
+- Show direction/destination labels prominently for each block
+- Show next trains **in each direction** for 4/5 and 2/3 (can treat 4/5 as one group, 2/3 as one group)
+- Keep J at Broad St as single-direction (terminus)
 
 ---
 
@@ -555,6 +563,7 @@ Prioritized backlog for after v1 ships:
 
 1. **Uber/Lyft pickup ETA** — Investigate API access, fall back to deep links
 2. **MTA service alerts** — "No 4/5 service this weekend" banner
+3. **Track a specific train across stops** (commute monitoring) — identify a trip at one station and project/track its arrival at subsequent stations (feasible via GTFS-RT trip_id/stop_time_updates; not v1)
 3. **Weather strip** — Temperature + precipitation affects transit choice
 4. **Portrait mode layout** — If vertical monitor looks better
 5. **Brother's config** — His stations, his Citibike docks, same codebase
