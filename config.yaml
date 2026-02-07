@@ -42,10 +42,14 @@ subway:
 citibike:
   poll_interval_seconds: 60
   stations:
+  - name: Broadway & Morris St
+    station_id: 7dda8844-60ba-4449-b05c-54c1d14ab5fb
+  - name: William St & Pine St
+    station_id: 66dbca0f-0aca-11e7-82f6-3863bb44ef7c
   - name: Liberty St & Broadway
     station_id: 66db3583-0aca-11e7-82f6-3863bb44ef7c
-  - name: Broad St & Bridge St
-    station_id: 66db447a-0aca-11e7-82f6-3863bb44ef7c
+  - name: Liberty St & Nassau St
+    station_id: e72f0aec-2293-4636-988c-b9d30df092f8
 display:
   theme: dark
   orientation: portrait
