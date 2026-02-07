@@ -17,6 +17,7 @@ const runtimeConfig = {
     locationName: null,
 };
 
+let frontendConfig = null;
 let lastSubwayMarkup = '';
 let lastCitibikeMarkup = '';
 let inFlight = false;
@@ -146,7 +147,7 @@ function formatDirectionHeading(lines, direction, label = null, destinations = n
     return resolvedLabel;
 }
 
-function buildSubwayMarkup(arrivals) {
+function buildSubwayMarkup(arrivals, stationBlocks = null) {
     if (!Array.isArray(arrivals)) {
         return '<p class="no-data">No trains scheduled</p>';
     }

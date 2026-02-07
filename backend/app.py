@@ -80,8 +80,45 @@ def _get_poll_intervals(config: Dict[str, Any]) -> Tuple[int, int]:
 
 
 def _build_frontend_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a small, read-only subset of config.yaml for the frontend.
+
+    This keeps the frontend rendering deterministic (always renders the configured blocks,
+    even if there are currently no arrivals for a given station).
+    """
+
     display = config.get("display", {}) if isinstance(config.get("display"), dict) else {}
     location = config.get("location", {}) if isinstance(config.get("location"), dict) else {}
+    subway = config.get("subway", {}) if isinstance(config.get("subway"), dict) else {}
+    citibike = config.get("citibike", {}) if isinstance(config.get("citibike"), dict) else {}
+
+    stations = subway.get("stations", []) if isinstance(subway.get("stations"), list) else []
+    citibike_stations = (
+        citibike.get("stations", []) if isinstance(citibike.get("stations"), list) else []
+    )
+
+    subway_blocks: list[dict[str, Any]] = []
+    for st in stations:
+        if not isinstance(st, dict):
+            continue
+        directions = st.get("directions", []) if isinstance(st.get("directions"), list) else []
+        subway_blocks.append(
+            {
+                "id": st.get("id"),
+                "name": st.get("name"),
+                "lines": st.get("lines"),
+                "directions": [
+                    {
+                        "code": d.get("code"),
+                        "label": d.get("label"),
+                        "destination": d.get("destination"),
+                        "stop_id": d.get("stop_id"),
+                    }
+                    for d in directions
+                    if isinstance(d, dict)
+                ],
+            }
+        )
+
     return {
         "display": {
             "refresh_interval_ms": max(1000, _safe_int(display.get("refresh_interval_ms", 15000), 15000)),
@@ -92,6 +129,16 @@ def _build_frontend_config(config: Dict[str, Any]) -> Dict[str, Any]:
         },
         "location": {
             "name": location.get("name"),
+        },
+        "subway": {
+            "stations": subway_blocks,
+        },
+        "citibike": {
+            "stations": [
+                {"name": s.get("name"), "station_id": s.get("station_id")}
+                for s in citibike_stations
+                if isinstance(s, dict)
+            ]
         },
     }
 
