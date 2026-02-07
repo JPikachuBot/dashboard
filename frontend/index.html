@@ -6,191 +6,32 @@
     <title>FiDi Transit Dashboard</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-refresh-interval-ms="15000" data-staleness-warning-sec="60" data-staleness-critical-sec="120">
     <header>
         <h1>FiDi Dash</h1>
-        <div class="staleness-indicator" aria-live="polite">
-            <span class="staleness-dot healthy" aria-hidden="true"></span>
-            <span class="staleness-text">Updated 10s ago</span>
+        <div class="staleness-indicator" aria-live="polite" data-staleness-target>
+            <span class="staleness-dot" aria-hidden="true" data-staleness-dot></span>
+            <span class="staleness-text" data-staleness-text>Updating...</span>
         </div>
     </header>
 
     <section class="subway-section">
         <h2>🚇 SUBWAY</h2>
-
-        <div class="station-group">
-            <div class="station-header">
-                <div class="line-badges" aria-label="Lines 4 and 5">
-                    <span class="line-badge line-4">4</span>
-                    <span class="line-badge line-5">5</span>
-                </div>
-                <h3 class="station-name">Wall St</h3>
-            </div>
-            <div class="arrivals">
-                <div class="arrival">
-                    <span class="line-indicator line-4">4</span>
-                    <span class="time">2 min</span>
-                </div>
-                <div class="arrival">
-                    <span class="line-indicator line-5">5</span>
-                    <span class="time">6 min</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="station-group">
-            <div class="station-header">
-                <div class="line-badges" aria-label="Lines 2 and 3">
-                    <span class="line-badge line-2">2</span>
-                    <span class="line-badge line-3">3</span>
-                </div>
-                <h3 class="station-name">Wall St</h3>
-            </div>
-            <div class="arrivals">
-                <div class="arrival">
-                    <span class="line-indicator line-2">2</span>
-                    <span class="time">5 min</span>
-                </div>
-                <div class="arrival">
-                    <span class="line-indicator line-3">3</span>
-                    <span class="time">9 min</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="station-group">
-            <div class="station-header">
-                <div class="line-badges" aria-label="Line J">
-                    <span class="line-badge line-j">J</span>
-                </div>
-                <h3 class="station-name">Broad St</h3>
-            </div>
-            <div class="arrivals">
-                <div class="arrival">
-                    <span class="line-indicator line-j">J</span>
-                    <span class="time">3 min</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="station-group">
-            <div class="station-header">
-                <div class="line-badges" aria-label="Line 1">
-                    <span class="line-badge line-1">1</span>
-                </div>
-                <h3 class="station-name">Rector St</h3>
-            </div>
-            <div class="arrivals">
-                <div class="arrival">
-                    <span class="line-indicator line-1">1</span>
-                    <span class="time">4 min</span>
-                </div>
-                <div class="arrival">
-                    <span class="line-indicator line-1">1</span>
-                    <span class="time">8 min</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="station-group">
-            <div class="station-header">
-                <div class="line-badges" aria-label="Lines R and W">
-                    <span class="line-badge line-r">R</span>
-                    <span class="line-badge line-w">W</span>
-                </div>
-                <h3 class="station-name">Rector St</h3>
-            </div>
-            <div class="arrivals">
-                <div class="arrival">
-                    <span class="line-indicator line-r">R</span>
-                    <span class="time">7 min</span>
-                </div>
-                <div class="arrival">
-                    <span class="line-indicator line-w">W</span>
-                    <span class="time">14 min</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="station-group">
-            <div class="station-header">
-                <div class="line-badges" aria-label="Lines A and C">
-                    <span class="line-badge line-a">A</span>
-                    <span class="line-badge line-c">C</span>
-                </div>
-                <h3 class="station-name">Fulton St</h3>
-            </div>
-            <div class="arrivals">
-                <div class="arrival">
-                    <span class="line-indicator line-a">A</span>
-                    <span class="time">3 min</span>
-                </div>
-                <div class="arrival">
-                    <span class="line-indicator line-c">C</span>
-                    <span class="time">5 min</span>
-                </div>
-            </div>
+        <div data-subway-container>
+            <p class="loading">Loading subway data...</p>
         </div>
     </section>
 
     <section class="citibike-section">
         <h2>🚲 CITIBIKE</h2>
-
-        <div class="citibike-station">
-            <h3 class="dock-name">Broadway &amp; Morris St</h3>
-            <div class="dock-status">
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: 67%"></div>
-                </div>
-                <div class="dock-counts">
-                    <span class="bike-count">8 bikes</span>
-                    <span class="dock-count">4 docks</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="citibike-station">
-            <h3 class="dock-name">William St &amp; Pine St</h3>
-            <div class="dock-status">
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: 20%"></div>
-                </div>
-                <div class="dock-counts">
-                    <span class="bike-count">3 bikes</span>
-                    <span class="dock-count">12 docks</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="citibike-station">
-            <h3 class="dock-name">Liberty St &amp; Broadway</h3>
-            <div class="dock-status">
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: 82%"></div>
-                </div>
-                <div class="dock-counts">
-                    <span class="bike-count">14 bikes</span>
-                    <span class="dock-count">3 docks</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="citibike-station">
-            <h3 class="dock-name">Liberty St &amp; Nassau St</h3>
-            <div class="dock-status">
-                <div class="progress-bar">
-                    <div class="progress-fill critical" style="width: 6%"></div>
-                </div>
-                <div class="dock-counts">
-                    <span class="bike-count">1 bike</span>
-                    <span class="dock-count">16 docks</span>
-                </div>
-            </div>
+        <div data-citibike-container>
+            <p class="loading">Loading Citibike data...</p>
         </div>
     </section>
 
     <footer>
         <p>📍 15 Broad St, FiDi</p>
     </footer>
+    <script src="app.js"></script>
 </body>
 </html>
