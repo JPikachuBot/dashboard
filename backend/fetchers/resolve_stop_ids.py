@@ -38,9 +38,8 @@ TARGET_SPECS: List[StationSpec] = [
     StationSpec(
         name="Broad St",
         lines=("J",),
-        direction="W",
+        direction="S",
         parent_station="M23",
-        direction_override="S",
     ),
     StationSpec(name="Rector St", lines=("1",), direction="N", parent_station="139"),
     StationSpec(name="Rector St", lines=("R", "W"), direction="N", parent_station="R26"),
@@ -105,7 +104,10 @@ def load_config(path: Path) -> dict:
     return data
 
 
-def update_config(config: dict, resolved: Dict[Tuple[str, Tuple[str, ...]], str]) -> None:
+def update_config(
+    config: dict,
+    resolved: Dict[Tuple[str, Tuple[str, ...], str], str],
+) -> None:
     subway = config.get("subway")
     if not isinstance(subway, dict):
         raise ValueError("Config missing subway section.")
@@ -120,9 +122,23 @@ def update_config(config: dict, resolved: Dict[Tuple[str, Tuple[str, ...]], str]
         lines = station.get("lines")
         if not isinstance(name, str) or not isinstance(lines, list):
             raise ValueError("Station entry missing name or lines.")
-        key = (name, normalize_lines(lines))
-        if key in resolved:
-            station["stop_id"] = resolved[key]
+        normalized = normalize_lines(lines)
+        directions = station.get("directions")
+        if isinstance(directions, list) and directions:
+            for direction in directions:
+                if not isinstance(direction, dict):
+                    continue
+                code = str(direction.get("code", "")).strip().upper()
+                if not code:
+                    continue
+                key = (name, normalized, code)
+                if key in resolved:
+                    direction["stop_id"] = resolved[key]
+        else:
+            direction_code = str(station.get("direction", "")).strip().upper()
+            key = (name, normalized, direction_code)
+            if key in resolved:
+                station["stop_id"] = resolved[key]
 
 
 def write_config(path: Path, config: dict) -> None:
@@ -140,12 +156,12 @@ def main() -> None:
     stops = load_stops(STOPS_PATH)
     config = load_config(CONFIG_PATH)
 
-    resolved: Dict[Tuple[str, Tuple[str, ...]], str] = {}
+    resolved: Dict[Tuple[str, Tuple[str, ...], str], str] = {}
     summaries: List[str] = []
 
     for spec in TARGET_SPECS:
         stop = resolve_stop_id(spec, stops)
-        key = (spec.name, normalize_lines(spec.lines))
+        key = (spec.name, normalize_lines(spec.lines), spec.direction)
         resolved[key] = stop.stop_id
         lines_display = format_lines(spec.lines)
         summaries.append(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -47,20 +48,52 @@ STALE_THRESHOLD_SECONDS = 120
 
 logger = logging.getLogger(__name__)
 
+UPTOWN_LINES: Set[str] = {
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "A",
+    "C",
+    "E",
+    "B",
+    "D",
+    "F",
+    "M",
+    "N",
+    "Q",
+    "R",
+    "W",
+}
+
 
 class Arrival(TypedDict):
     line: str
     station: str
+    station_block_id: str
     direction: str
+    direction_label: str
+    direction_destination: Optional[str]
     minutes_until: int
     route_id: str
     stop_id: str
     timestamp: int
 
 
-class StationConfig(TypedDict):
+class DirectionConfig(TypedDict, total=False):
+    code: str
+    label: str
+    destination: str
+    stop_id: str
+
+
+class StationBlockConfig(TypedDict, total=False):
+    id: str
     name: str
     lines: List[str]
+    directions: List[DirectionConfig]
     stop_id: str
     direction: str
 
@@ -70,8 +103,38 @@ class ArrivalCandidate:
     arrival_timestamp: int
     line: str
     station: str
+    station_block_id: str
     direction: str
+    direction_label: str
+    direction_destination: Optional[str]
     route_id: str
+    stop_id: str
+
+
+@dataclass(frozen=True)
+class DirectionSpec:
+    code: str
+    label: str
+    destination: Optional[str]
+    stop_id: str
+
+
+@dataclass(frozen=True)
+class StationBlock:
+    id: str
+    name: str
+    lines: List[str]
+    directions: List[DirectionSpec]
+
+
+@dataclass(frozen=True)
+class StationDirection:
+    station_block_id: str
+    station_name: str
+    lines: List[str]
+    direction_code: str
+    direction_label: str
+    direction_destination: Optional[str]
     stop_id: str
 
 
@@ -98,10 +161,10 @@ def load_config(config_path: Path = CONFIG_PATH) -> dict:
     return data
 
 
-def get_required_feeds(stations: Sequence[StationConfig]) -> List[str]:
+def get_required_feeds(stations: Sequence[StationBlock]) -> List[str]:
     required: Set[str] = set()
     for station in stations:
-        for line in station["lines"]:
+        for line in station.lines:
             feed = LINE_TO_FEED.get(line)
             if feed is None:
                 logger.warning("Unknown line '%s' in config; skipping feed mapping.", line)
@@ -147,7 +210,7 @@ def _is_stop_id_valid(feed: NYCTFeed, stop_id: str) -> bool:
 
 def _collect_candidates(
     feed: NYCTFeed,
-    stations: Sequence[StationConfig],
+    stations: Sequence[StationDirection],
     now_timestamp: int,
 ) -> Dict[int, List[ArrivalCandidate]]:
     candidates_by_station: Dict[int, List[ArrivalCandidate]] = {
@@ -155,12 +218,16 @@ def _collect_candidates(
     }
 
     for idx, station in enumerate(stations):
-        stop_id = station["stop_id"]
+        stop_id = station.stop_id
         if not _is_stop_id_valid(feed, stop_id):
-            logger.warning("Invalid stop_id '%s' in feed; skipping station %s.", stop_id, station["name"])
+            logger.warning(
+                "Invalid stop_id '%s' in feed; skipping station %s.",
+                stop_id,
+                station.station_name,
+            )
             continue
 
-        station_lines = station["lines"]
+        station_lines = station.lines
         trips = feed.filter_trips(line_id=station_lines)
         for trip in trips:
             for update in trip.stop_time_updates:
@@ -176,8 +243,11 @@ def _collect_candidates(
                     ArrivalCandidate(
                         arrival_timestamp=arrival_ts,
                         line=trip.route_id,
-                        station=station["name"],
-                        direction=station["direction"],
+                        station=station.station_name,
+                        station_block_id=station.station_block_id,
+                        direction=station.direction_code,
+                        direction_label=station.direction_label,
+                        direction_destination=station.direction_destination,
                         route_id=trip.route_id,
                         stop_id=stop_id,
                     )
@@ -212,7 +282,10 @@ def _select_arrivals(
                 Arrival(
                     line=candidate.line,
                     station=candidate.station,
+                    station_block_id=candidate.station_block_id,
                     direction=candidate.direction,
+                    direction_label=candidate.direction_label,
+                    direction_destination=candidate.direction_destination,
                     minutes_until=minutes_until(candidate.arrival_timestamp, now_timestamp),
                     route_id=candidate.route_id,
                     stop_id=candidate.stop_id,
@@ -222,40 +295,136 @@ def _select_arrivals(
     return results
 
 
-def _extract_stations(config: dict) -> List[StationConfig]:
+def _slugify(value: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9]+", "_", value.strip().lower())
+    return cleaned.strip("_") or "station"
+
+
+def _normalize_station_block_id(name: str, lines: List[str], provided: Optional[str]) -> str:
+    if isinstance(provided, str) and provided.strip():
+        return provided.strip()
+    line_key = "_".join(sorted(_slugify(line) for line in lines if line))
+    return f"{_slugify(name)}_{line_key}".strip("_")
+
+
+def _resolve_direction_label(lines: List[str], code: str, provided: Optional[str]) -> str:
+    if isinstance(provided, str) and provided.strip():
+        return provided.strip()
+    direction_code = code.strip().upper()
+    normalized_lines = {str(line).strip().upper() for line in lines if str(line).strip()}
+    is_uptown = any(line in UPTOWN_LINES for line in normalized_lines)
+    if direction_code in {"N", "S"} and is_uptown:
+        return "Uptown" if direction_code == "N" else "Downtown"
+    if direction_code == "N":
+        return "Northbound"
+    if direction_code == "S":
+        return "Southbound"
+    if direction_code == "E":
+        return "Eastbound"
+    if direction_code == "W":
+        return "Westbound"
+    return "Unknown direction"
+
+
+def _extract_station_blocks(config: dict) -> List[StationBlock]:
     subway = config.get("subway")
     if not isinstance(subway, dict):
         raise ValueError("Config missing subway section.")
     stations = subway.get("stations")
     if not isinstance(stations, list):
         raise ValueError("Config subway.stations must be a list.")
-    normalized: List[StationConfig] = []
-    for station in stations:
-        if not isinstance(station, dict):
+    normalized: List[StationBlock] = []
+    for station_raw in stations:
+        if not isinstance(station_raw, dict):
             raise ValueError("Each station entry must be a mapping.")
-        name = station.get("name")
-        lines = station.get("lines")
-        stop_id = station.get("stop_id")
-        direction = station.get("direction")
+        name = station_raw.get("name")
+        lines = station_raw.get("lines")
+        stop_id = station_raw.get("stop_id")
+        direction = station_raw.get("direction")
+        directions = station_raw.get("directions")
         if not isinstance(name, str) or not isinstance(lines, list):
             raise ValueError("Station entry missing name or lines.")
-        if not isinstance(stop_id, str) or not stop_id:
-            raise ValueError(f"Station {name} missing stop_id.")
-        if not isinstance(direction, str) or not direction:
-            raise ValueError(f"Station {name} missing direction.")
+        normalized_lines = [str(line).strip() for line in lines if str(line).strip()]
+        if not normalized_lines:
+            raise ValueError(f"Station {name} missing lines.")
+
+        direction_specs: List[DirectionSpec] = []
+        if isinstance(directions, list) and directions:
+            for direction_raw in directions:
+                if not isinstance(direction_raw, dict):
+                    raise ValueError(f"Station {name} has invalid directions entry.")
+                code = direction_raw.get("code")
+                dir_stop_id = direction_raw.get("stop_id")
+                label = direction_raw.get("label")
+                destination = direction_raw.get("destination")
+                if not isinstance(code, str) or not code.strip():
+                    raise ValueError(f"Station {name} direction missing code.")
+                if not isinstance(dir_stop_id, str) or not dir_stop_id.strip():
+                    raise ValueError(f"Station {name} direction {code} missing stop_id.")
+                resolved_label = _resolve_direction_label(normalized_lines, code, label)
+                resolved_destination = (
+                    destination.strip()
+                    if isinstance(destination, str) and destination.strip()
+                    else None
+                )
+                direction_specs.append(
+                    DirectionSpec(
+                        code=code.strip().upper(),
+                        label=resolved_label,
+                        destination=resolved_destination,
+                        stop_id=dir_stop_id.strip(),
+                    )
+                )
+        elif isinstance(stop_id, str) and stop_id.strip() and isinstance(direction, str) and direction.strip():
+            resolved_label = _resolve_direction_label(normalized_lines, direction, None)
+            direction_specs.append(
+                DirectionSpec(
+                    code=direction.strip().upper(),
+                    label=resolved_label,
+                    destination=None,
+                    stop_id=stop_id.strip(),
+                )
+            )
+        else:
+            raise ValueError(f"Station {name} missing directions/stop_id configuration.")
+
+        station_block_id = _normalize_station_block_id(
+            name,
+            normalized_lines,
+            station_raw.get("id"),
+        )
         normalized.append(
-            StationConfig(
-                name=name,
-                lines=[str(line).strip() for line in lines],
-                stop_id=stop_id.strip(),
-                direction=direction.strip(),
+            StationBlock(
+                id=station_block_id,
+                name=name.strip(),
+                lines=normalized_lines,
+                directions=direction_specs,
             )
         )
     return normalized
 
 
+def _expand_station_directions(stations: Sequence[StationBlock]) -> List[StationDirection]:
+    expanded: List[StationDirection] = []
+    for station in stations:
+        for direction in station.directions:
+            expanded.append(
+                StationDirection(
+                    station_block_id=station.id,
+                    station_name=station.name,
+                    lines=station.lines,
+                    direction_code=direction.code,
+                    direction_label=direction.label,
+                    direction_destination=direction.destination,
+                    stop_id=direction.stop_id,
+                )
+            )
+    return expanded
+
+
 def fetch_subway_arrivals(config: dict) -> List[Arrival]:
-    stations = _extract_stations(config)
+    stations = _extract_station_blocks(config)
+    station_directions = _expand_station_directions(stations)
     feed_names = get_required_feeds(stations)
     api_key = os.environ.get("MTA_API_KEY")
 
@@ -265,7 +434,7 @@ def fetch_subway_arrivals(config: dict) -> List[Arrival]:
     now_timestamp = int(time.time())
     fetched_timestamp = now_timestamp
     candidates_by_station: Dict[int, List[ArrivalCandidate]] = {
-        idx: [] for idx in range(len(stations))
+        idx: [] for idx in range(len(station_directions))
     }
 
     try:
@@ -277,7 +446,7 @@ def fetch_subway_arrivals(config: dict) -> List[Arrival]:
                     f"Feed {feed_name} is stale: generated at {feed.last_generated}."
                 )
 
-            feed_candidates = _collect_candidates(feed, stations, now_timestamp)
+            feed_candidates = _collect_candidates(feed, station_directions, now_timestamp)
             for idx, candidates in feed_candidates.items():
                 candidates_by_station[idx].extend(candidates)
     except requests.RequestException as exc:
@@ -296,15 +465,17 @@ def fetch_subway_arrivals(config: dict) -> List[Arrival]:
     return arrivals
 
 
-def _format_station_header(station: StationConfig) -> str:
-    lines_display = "/".join(station["lines"])
-    return f"{station['name'].upper()} ({lines_display})"
+def _format_station_header(station: StationBlock) -> str:
+    lines_display = "/".join(station.lines)
+    return f"{station.name.upper()} ({lines_display})"
 
 
-def _render_output(stations: Sequence[StationConfig], arrivals: Sequence[Arrival]) -> str:
-    arrivals_by_station: Dict[str, List[Arrival]] = {}
+def _render_output(stations: Sequence[StationBlock], arrivals: Sequence[Arrival]) -> str:
+    arrivals_by_station: Dict[str, Dict[str, List[Arrival]]] = {}
     for arrival in arrivals:
-        arrivals_by_station.setdefault(arrival["stop_id"], []).append(arrival)
+        block_id = arrival["station_block_id"]
+        direction = arrival["direction"]
+        arrivals_by_station.setdefault(block_id, {}).setdefault(direction, []).append(arrival)
 
     output_lines: List[str] = []
     output_lines.append("Fetching MTA subway arrivals...")
@@ -318,15 +489,21 @@ def _render_output(stations: Sequence[StationConfig], arrivals: Sequence[Arrival
 
     for station in stations:
         output_lines.append(_format_station_header(station))
-        station_arrivals = arrivals_by_station.get(station["stop_id"], [])
+        station_arrivals = arrivals_by_station.get(station.id, {})
         if not station_arrivals:
             output_lines.append("  (no upcoming trains)")
             output_lines.append("")
             continue
-        for arrival in station_arrivals:
-            output_lines.append(
-                f"  {arrival['line']} train → {arrival['minutes_until']} min"
-            )
+        for direction in station.directions:
+            direction_arrivals = station_arrivals.get(direction.code, [])
+            output_lines.append(f"  {direction.label}:")
+            if not direction_arrivals:
+                output_lines.append("    (no upcoming trains)")
+                continue
+            for arrival in direction_arrivals:
+                output_lines.append(
+                    f"    {arrival['line']} train → {arrival['minutes_until']} min"
+                )
         output_lines.append("")
 
     output_lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -345,7 +522,7 @@ def main() -> None:
         logger.error("Failed to load config: %s", exc)
         return
 
-    stations = _extract_stations(config)
+    stations = _extract_station_blocks(config)
     arrivals = fetch_subway_arrivals(config)
     output = _render_output(stations, arrivals)
     print(output)

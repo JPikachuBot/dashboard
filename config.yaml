@@ -5,40 +5,73 @@ location:
 subway:
   poll_interval_seconds: 30
   stations:
-  - name: Wall St
+  - id: wall_45
+    name: Wall St
     lines:
     - '4'
     - '5'
-    stop_id: 419N
-    direction: N
-  - name: Wall St
+    directions:
+    - code: N
+      label: Uptown
+      stop_id: 419N
+    - code: S
+      label: Downtown
+      stop_id: 419S
+  - id: wall_23
+    name: Wall St
     lines:
     - '2'
     - '3'
-    stop_id: 230N
-    direction: N
-  - name: Broad St
+    directions:
+    - code: N
+      label: Uptown
+      stop_id: 230N
+    - code: S
+      label: Downtown
+      stop_id: 230S
+  - id: broad_j
+    name: Broad St
     lines:
     - J
-    stop_id: M23S
-    direction: W
-  - name: Rector St
+    directions:
+    - code: S
+      label: Downtown
+      stop_id: M23S
+  - id: rector_1
+    name: Rector St
     lines:
     - '1'
-    stop_id: 139N
-    direction: N
-  - name: Rector St
+    directions:
+    - code: N
+      label: Uptown
+      stop_id: 139N
+    - code: S
+      label: Downtown
+      stop_id: 139S
+  - id: rector_rw
+    name: Rector St
     lines:
     - R
     - W
-    stop_id: R26N
-    direction: N
-  - name: Fulton St
+    directions:
+    - code: N
+      label: Uptown
+      stop_id: R26N
+    - code: S
+      label: Downtown
+      stop_id: R26S
+  - id: fulton_ac
+    name: Fulton St
     lines:
     - A
     - C
-    stop_id: A38N
-    direction: N
+    directions:
+    - code: N
+      label: Uptown
+      stop_id: A38N
+    - code: S
+      label: Downtown
+      stop_id: A38S
 citibike:
   poll_interval_seconds: 60
   stations:
