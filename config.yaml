@@ -42,10 +42,10 @@ subway:
 citibike:
   poll_interval_seconds: 60
   stations:
-  - name: Broadway & Exchange Pl
-    station_id: ''
-  - name: Broadway & Liberty St
-    station_id: ''
+  - name: Liberty St & Broadway
+    station_id: 66db3583-0aca-11e7-82f6-3863bb44ef7c
+  - name: Broad St & Bridge St
+    station_id: 66db447a-0aca-11e7-82f6-3863bb44ef7c
 display:
   theme: dark
   orientation: portrait
