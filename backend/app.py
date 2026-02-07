@@ -79,6 +79,45 @@ def _get_poll_intervals(config: Dict[str, Any]) -> Tuple[int, int]:
     return subway_interval, citibike_interval
 
 
+def _haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Return straight-line distance in miles between two coordinates."""
+
+    import math
+
+    radius_miles = 3958.8
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return radius_miles * c
+
+
+def _walk_minutes_from_miles(distance_miles: float, walking_speed_mps: float = 1.4) -> Optional[int]:
+    import math
+
+    if not math.isfinite(distance_miles):
+        return None
+    if distance_miles <= 0:
+        return 0
+    meters_per_mile = 1609.34
+    minutes_per_mile = meters_per_mile / (walking_speed_mps * 60)
+    return max(1, int(round(distance_miles * minutes_per_mile)))
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _build_frontend_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Return a small, read-only subset of config.yaml for the frontend.
 
@@ -91,6 +130,9 @@ def _build_frontend_config(config: Dict[str, Any]) -> Dict[str, Any]:
     subway = config.get("subway", {}) if isinstance(config.get("subway"), dict) else {}
     citibike = config.get("citibike", {}) if isinstance(config.get("citibike"), dict) else {}
 
+    home_lat = _safe_float(location.get("lat"))
+    home_lng = _safe_float(location.get("lng"))
+
     stations = subway.get("stations", []) if isinstance(subway.get("stations"), list) else []
     citibike_stations = (
         citibike.get("stations", []) if isinstance(citibike.get("stations"), list) else []
@@ -101,11 +143,22 @@ def _build_frontend_config(config: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(st, dict):
             continue
         directions = st.get("directions", []) if isinstance(st.get("directions"), list) else []
+
+        st_lat = _safe_float(st.get("lat"))
+        st_lng = _safe_float(st.get("lng"))
+        distance_miles: Optional[float] = None
+        walk_minutes: Optional[int] = None
+        if home_lat is not None and home_lng is not None and st_lat is not None and st_lng is not None:
+            distance_miles = _haversine_miles(home_lat, home_lng, st_lat, st_lng)
+            walk_minutes = _walk_minutes_from_miles(distance_miles)
+
         subway_blocks.append(
             {
                 "id": st.get("id"),
                 "name": st.get("name"),
                 "lines": st.get("lines"),
+                "distance_miles": distance_miles,
+                "walk_minutes": walk_minutes,
                 "directions": [
                     {
                         "code": d.get("code"),
@@ -129,6 +182,8 @@ def _build_frontend_config(config: Dict[str, Any]) -> Dict[str, Any]:
         },
         "location": {
             "name": location.get("name"),
+            "lat": home_lat,
+            "lng": home_lng,
         },
         "subway": {
             "stations": subway_blocks,

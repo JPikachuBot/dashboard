@@ -427,7 +427,12 @@ function buildSubwayMarkupFromConfig(arrivals, stationBlocks) {
                     </div>
                     <div class="station-center">
                         <div class="line-badges">${lineBadges}</div>
-                        <span class="station-name">${escapeHtml(stationName)}${escapeHtml(serviceNote)}</span>
+                        <span class="station-name">
+                            <span class="station-name-text">${escapeHtml(stationName)}${escapeHtml(serviceNote)}</span>
+                            ${Number.isFinite(block.walk_minutes) && Number.isFinite(block.distance_miles)
+                                ? `<span class="station-walk">— ${Math.round(block.walk_minutes)} min (${Number(block.distance_miles).toFixed(1)} mi) away</span>`
+                                : ''}
+                        </span>
                     </div>
                     <div class="station-side right">
                         <span class="direction-label">${escapeHtml(rightDirection.label || 'Downtown')}</span>
