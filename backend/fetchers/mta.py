@@ -17,10 +17,10 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 CONFIG_PATH = ROOT_DIR / "config.yaml"
 
 FEED_URLS: Dict[str, str] = {
-    "gtfs-1234567": "https://api.mta.info/api/subway/gtfs/gtfs-1234567",
-    "gtfs-ace": "https://api.mta.info/api/subway/gtfs/gtfs-ace",
-    "gtfs-nqrw": "https://api.mta.info/api/subway/gtfs/gtfs-nqrw",
-    "gtfs-jz": "https://api.mta.info/api/subway/gtfs/gtfs-jz",
+    "gtfs-1234567": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",
+    "gtfs-ace": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace",
+    "gtfs-nqrw": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw",
+    "gtfs-jz": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz",
 }
 
 LINE_TO_FEED: Dict[str, str] = {
