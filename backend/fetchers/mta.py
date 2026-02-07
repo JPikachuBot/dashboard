@@ -227,8 +227,10 @@ def _collect_candidates(
             )
             continue
 
-        station_lines = station.lines
-        trips = feed.filter_trips(line_id=station_lines)
+        # NOTE: Do NOT filter by line_id here. Service changes can temporarily route
+        # other lines over this stop (e.g., N serving the R/W local). Filtering only
+        # by configured lines would hide valid arrivals.
+        trips = feed.filter_trips()
         for trip in trips:
             for update in trip.stop_time_updates:
                 if update.stop_id != stop_id:
