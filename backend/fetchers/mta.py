@@ -117,14 +117,21 @@ def minutes_until(arrival_timestamp: int, now_timestamp: int) -> int:
     return max(0, int((arrival_timestamp - now_timestamp) // 60))
 
 
-def _fetch_feed(feed_name: str, api_key: str, timeout_seconds: int) -> NYCTFeed:
+def _fetch_feed(feed_name: str, api_key: Optional[str], timeout_seconds: int) -> NYCTFeed:
     feed_url = FEED_URLS[feed_name]
     feed = NYCTFeed(feed_url, fetch_immediately=False)
+    headers = {"x-api-key": api_key} if api_key else None
     response = requests.get(
         feed_url,
-        headers={"x-api-key": api_key},
+        headers=headers,
         timeout=timeout_seconds,
     )
+    if response.status_code in {401, 403}:
+        logger.error(
+            "MTA feed request unauthorized for %s (HTTP %s).",
+            feed_name,
+            response.status_code,
+        )
     response.raise_for_status()
     feed.load_gtfs_bytes(response.content)
     return feed
@@ -253,8 +260,7 @@ def fetch_subway_arrivals(config: dict) -> List[Arrival]:
     api_key = os.environ.get("MTA_API_KEY")
 
     if not api_key:
-        logger.error("MTA_API_KEY is not set; returning cached data if available.")
-        return list(_CACHE.arrivals) if _CACHE.arrivals else []
+        logger.info("MTA_API_KEY is not set; fetching feeds without authentication.")
 
     now_timestamp = int(time.time())
     fetched_timestamp = now_timestamp
