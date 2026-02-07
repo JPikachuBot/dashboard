@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FiDi Transit Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>FiDi Dash</h1>
+        <div class="staleness-indicator" aria-live="polite" data-staleness-target>
+            <span class="staleness-dot" aria-hidden="true" data-staleness-dot></span>
+            <span class="staleness-text" data-staleness-text>Updating...</span>
+        </div>
+    </header>
+
+    <section class="subway-section">
+        <h2>🚇 SUBWAY</h2>
+        <div data-subway-container>
+            <p class="loading">Loading subway data...</p>
+        </div>
+    </section>
+
+    <section class="citibike-section">
+        <h2>🚲 CITIBIKE</h2>
+        <div data-citibike-container>
+            <p class="loading">Loading Citibike data...</p>
+        </div>
+    </section>
+
+    <footer>
+        <p>📍 <span data-location-text>15 Broad St, FiDi</span></p>
+    </footer>
+    <script src="app.js"></script>
+</body>
+</html>

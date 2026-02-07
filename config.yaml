@@ -1,44 +1,88 @@
 location:
-  name: "15 Broad St, FiDi"
+  name: 15 Broad St, FiDi
   lat: 40.7074
   lng: -74.0113
-
 subway:
   poll_interval_seconds: 30
   stations:
-    - name: "Wall St"
-      lines: ["4", "5"]
-      stop_id: "TBD"
-      direction: "N"
-    - name: "Wall St"
-      lines: ["2", "3"]
-      stop_id: "TBD"
-      direction: "N"
-    - name: "Broad St"
-      lines: ["J"]
-      stop_id: "TBD"
-      direction: "W"
-    - name: "Rector St"
-      lines: ["1"]
-      stop_id: "TBD"
-      direction: "N"
-    - name: "Rector St"
-      lines: ["R", "W"]
-      stop_id: "TBD"
-      direction: "N"
-    - name: "Fulton St"
-      lines: ["A", "C"]
-      stop_id: "TBD"
-      direction: "N"
-
+  - id: wall_45
+    name: Wall St
+    lines:
+    - '4'
+    - '5'
+    directions:
+    - code: N
+      label: Uptown
+      stop_id: 419N
+    - code: S
+      label: Downtown
+      stop_id: 419S
+  - id: wall_23
+    name: Wall St
+    lines:
+    - '2'
+    - '3'
+    directions:
+    - code: N
+      label: Uptown
+      stop_id: 230N
+    - code: S
+      label: Downtown
+      stop_id: 230S
+  - id: broad_j
+    name: Broad St
+    lines:
+    - J
+    directions:
+    - code: S
+      label: Downtown
+      stop_id: M23S
+  - id: rector_1
+    name: Rector St
+    lines:
+    - '1'
+    directions:
+    - code: N
+      label: Uptown
+      stop_id: 139N
+    - code: S
+      label: Downtown
+      stop_id: 139S
+  - id: rector_rw
+    name: Rector St
+    lines:
+    - R
+    - W
+    directions:
+    - code: N
+      label: Uptown
+      stop_id: R26N
+    - code: S
+      label: Downtown
+      stop_id: R26S
+  - id: fulton_ac
+    name: Fulton St
+    lines:
+    - A
+    - C
+    directions:
+    - code: N
+      label: Uptown
+      stop_id: A38N
+    - code: S
+      label: Downtown
+      stop_id: A38S
 citibike:
   poll_interval_seconds: 60
   stations:
-    - name: "Broadway & Exchange Pl"
-      station_id: "TBD"
-    - name: "Second Station TBD"
-      station_id: "TBD"
-
+  - name: Broadway & Morris St
+    station_id: 7dda8844-60ba-4449-b05c-54c1d14ab5fb
+  - name: William St & Pine St
+    station_id: 66dbca0f-0aca-11e7-82f6-3863bb44ef7c
+  - name: Liberty St & Broadway
+    station_id: 66db3583-0aca-11e7-82f6-3863bb44ef7c
+  - name: Liberty St & Nassau St
+    station_id: e72f0aec-2293-4636-988c-b9d30df092f8
 display:
   theme: dark
   orientation: portrait
