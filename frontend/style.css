@@ -129,8 +129,8 @@ section {
 .arrivals {
     display: flex;
     flex-direction: column;
-    gap: 15px;
-    margin-top: 15px;
+    gap: 10px;
+    margin-top: 8px;
 }
 
 .direction-groups {
@@ -160,14 +160,27 @@ section {
 
 .arrival {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     padding: 8px 0;
+    gap: 12px;
+}
+
+.arrival-direction {
+    flex: 1;
+    min-width: 0;
+    font-size: 20px;
+    color: var(--color-text-muted);
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .time {
     font-size: 56px;
     font-weight: 700;
+    margin-left: auto;
 }
 
 .citibike-station {

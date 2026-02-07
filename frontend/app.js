@@ -232,6 +232,7 @@ function buildSubwayMarkup(arrivals) {
                             return `
                                 <div class="arrival ${urgencyClass}">
                                     <span class="line-indicator line-${lineClass}">${escapeHtml(train.line)}</span>
+                                    <span class="arrival-direction">${escapeHtml(heading)}</span>
                                     <span class="time">${formatMinutes(minutes)}</span>
                                 </div>
                             `;
@@ -239,9 +240,6 @@ function buildSubwayMarkup(arrivals) {
                         .join('');
                     return `
                         <div class="direction-group">
-                            <div class="direction-header">
-                                <span class="direction-label">${escapeHtml(heading)}</span>
-                            </div>
                             <div class="arrivals">
                                 ${arrivalsHtml}
                             </div>
