@@ -1,44 +1,51 @@
 location:
-  name: "15 Broad St, FiDi"
+  name: 15 Broad St, FiDi
   lat: 40.7074
   lng: -74.0113
-
 subway:
   poll_interval_seconds: 30
   stations:
-    - name: "Wall St"
-      lines: ["4", "5"]
-      stop_id: "TBD"
-      direction: "N"
-    - name: "Wall St"
-      lines: ["2", "3"]
-      stop_id: "TBD"
-      direction: "N"
-    - name: "Broad St"
-      lines: ["J"]
-      stop_id: "TBD"
-      direction: "W"
-    - name: "Rector St"
-      lines: ["1"]
-      stop_id: "TBD"
-      direction: "N"
-    - name: "Rector St"
-      lines: ["R", "W"]
-      stop_id: "TBD"
-      direction: "N"
-    - name: "Fulton St"
-      lines: ["A", "C"]
-      stop_id: "TBD"
-      direction: "N"
-
+  - name: Wall St
+    lines:
+    - '4'
+    - '5'
+    stop_id: 419N
+    direction: N
+  - name: Wall St
+    lines:
+    - '2'
+    - '3'
+    stop_id: 230N
+    direction: N
+  - name: Broad St
+    lines:
+    - J
+    stop_id: M23S
+    direction: W
+  - name: Rector St
+    lines:
+    - '1'
+    stop_id: 139N
+    direction: N
+  - name: Rector St
+    lines:
+    - R
+    - W
+    stop_id: R26N
+    direction: N
+  - name: Fulton St
+    lines:
+    - A
+    - C
+    stop_id: A38N
+    direction: N
 citibike:
   poll_interval_seconds: 60
   stations:
-    - name: "Broadway & Exchange Pl"
-      station_id: "TBD"
-    - name: "Second Station TBD"
-      station_id: "TBD"
-
+  - name: Broadway & Exchange Pl
+    station_id: ''
+  - name: Second Station
+    station_id: ''
 display:
   theme: dark
   orientation: portrait
