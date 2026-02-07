@@ -149,6 +149,11 @@ def api_citibike() -> Any:
     )
 
 
+@app.route("/health")
+def health_alias() -> Any:
+    return api_health()
+
+
 @app.route("/api/health")
 def api_health() -> Any:
     config = load_config()
