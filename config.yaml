@@ -95,6 +95,22 @@ citibike:
     station_id: 66db3583-0aca-11e7-82f6-3863bb44ef7c
   - name: Liberty St & Nassau St
     station_id: e72f0aec-2293-4636-988c-b9d30df092f8
+inbound_tracker:
+  enabled: true
+  label: INBOUND 4/5
+  routes:
+  - '4'
+  - '5'
+  direction: S
+  tracking_window:
+    north_boundary: 59th St
+    south_boundary: Brooklyn Bridge-City Hall
+  destination_stations:
+  - name: Wall St
+    walk_time_minutes: 2
+  - name: Fulton St
+    walk_time_minutes: 4
+  max_trains: 5
 display:
   theme: dark
   orientation: portrait

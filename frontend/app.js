@@ -6,6 +6,9 @@ const DEFAULT_STALENESS_CRITICAL_SEC = 120;
 
 const subwayContainer = document.querySelector('[data-subway-container]');
 const citibikeContainer = document.querySelector('[data-citibike-container]');
+const inboundContainer = document.querySelector('[data-inbound-container]');
+const inboundSection = document.querySelector('[data-inbound-section]');
+const inboundHeader = document.querySelector('[data-inbound-header]');
 const stalenessDot = document.querySelector('[data-staleness-dot]');
 const stalenessText = document.querySelector('[data-staleness-text]');
 const locationText = document.querySelector('[data-location-text]');
@@ -15,11 +18,15 @@ const runtimeConfig = {
     stalenessWarningSec: DEFAULT_STALENESS_WARNING_SEC,
     stalenessCriticalSec: DEFAULT_STALENESS_CRITICAL_SEC,
     locationName: null,
+    inboundEnabled: true,
+    inboundLabel: 'INBOUND 4/5',
+    inboundWindow: null,
 };
 
 let frontendConfig = null;
 let lastSubwayMarkup = '';
 let lastCitibikeMarkup = '';
+let lastInboundMarkup = '';
 let inFlight = false;
 let refreshTimerId = null;
 let lastStalenessSeconds = null;
@@ -494,6 +501,46 @@ function buildCitibikeMarkup(stations) {
         .join('');
 }
 
+function buildInboundMarkup(trains, trackingWindow = null) {
+    const windowNorth = trackingWindow?.north || '59th St';
+    const windowSouth = trackingWindow?.south || 'Brooklyn Bridge';
+    if (!Array.isArray(trains) || trains.length === 0) {
+        return `<p class="no-data">No inbound 4/5 trains between ${escapeHtml(windowNorth)} and ${escapeHtml(windowSouth)}</p>`;
+    }
+
+    const rows = trains
+        .map((train) => {
+            const routeId = String(train.route_id || train.route || train.line || '?').toUpperCase();
+            const lineClass = normalizeLineClass(routeId);
+            const wallEta = clampNumber(train.wall_st_eta, 0, 999);
+            const fultonEta = clampNumber(train.fulton_st_eta, 0, 999);
+            const leaveBy = clampNumber(train.leave_by, 0, 999);
+            const urgencyClass = getUrgencyClass(leaveBy);
+            const position = train.current_position || 'In transit';
+
+            return `
+                <div class="inbound-row ${urgencyClass}">
+                    <span class="line-indicator line-${lineClass}">${escapeHtml(routeId)}</span>
+                    <div class="inbound-details">
+                        <div class="inbound-position">${escapeHtml(position)}</div>
+                        <div class="inbound-etas">
+                            <span>Wall ${formatMinutes(wallEta)}</span>
+                            <span class="eta-divider">│</span>
+                            <span>Fulton ${formatMinutes(fultonEta)}</span>
+                        </div>
+                    </div>
+                    <div class="inbound-leave">
+                        <span class="leave-label">Leave in</span>
+                        <span class="leave-value">${formatMinutes(leaveBy)}</span>
+                    </div>
+                </div>
+            `;
+        })
+        .join('');
+
+    return `<div class="inbound-list">${rows}</div>`;
+}
+
 function setStalenessStatus(statusClass, text) {
     if (stalenessDot) {
         stalenessDot.className = `staleness-dot ${statusClass}`.trim();
@@ -591,6 +638,7 @@ async function fetchConfig() {
         const data = json.data || {};
         const display = data.display || {};
         const location = data.location || {};
+        const inbound = data.inbound_tracker || {};
         frontendConfig = data;
 
         runtimeConfig.refreshIntervalMs = parsePositiveInt(
@@ -614,6 +662,22 @@ async function fetchConfig() {
             if (locationText) {
                 locationText.textContent = runtimeConfig.locationName;
             }
+        }
+
+        runtimeConfig.inboundEnabled = inbound.enabled !== false;
+        runtimeConfig.inboundLabel =
+            typeof inbound.label === 'string' && inbound.label.trim()
+                ? inbound.label.trim()
+                : 'INBOUND 4/5';
+        runtimeConfig.inboundWindow = {
+            north: inbound.tracking_window?.north_boundary || '59th St',
+            south: inbound.tracking_window?.south_boundary || 'Brooklyn Bridge',
+        };
+        if (inboundHeader) {
+            inboundHeader.textContent = `🚇 ${runtimeConfig.inboundLabel}`;
+        }
+        if (!runtimeConfig.inboundEnabled && inboundContainer) {
+            inboundContainer.innerHTML = '<p class="no-data">Inbound tracker disabled</p>';
         }
     } catch (error) {
         console.error('Config fetch failed:', error);
@@ -670,6 +734,30 @@ async function fetchCitibikeData() {
     }
 }
 
+async function fetchInboundData() {
+    if (!inboundContainer || !runtimeConfig.inboundEnabled) {
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/api/inbound`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const json = await response.json();
+        const trains = Array.isArray(json?.trains) ? json.trains : [];
+        const trackingWindow = runtimeConfig.inboundWindow || {
+            north: '59th St',
+            south: 'Brooklyn Bridge',
+        };
+        const markup = buildInboundMarkup(trains, trackingWindow);
+        inboundContainer.innerHTML = markup;
+        lastInboundMarkup = markup;
+    } catch (error) {
+        console.error('Inbound fetch failed:', error);
+        renderError(inboundContainer, 'Unable to load inbound data', lastInboundMarkup);
+    }
+}
+
 async function fetchHealthData() {
     try {
         const response = await fetch(`${API_BASE}/api/health`);
@@ -702,6 +790,7 @@ async function fetchAllData() {
         await Promise.allSettled([
             fetchSubwayData(),
             fetchCitibikeData(),
+            fetchInboundData(),
             fetchHealthData(),
         ]);
     } finally {

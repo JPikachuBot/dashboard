@@ -270,6 +270,72 @@ section {
     gap: 12px;
 }
 
+.inbound-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.inbound-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
+    align-items: center;
+    padding: 16px;
+    background: var(--color-surface-raised);
+    border-radius: 10px;
+}
+
+.inbound-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.inbound-position {
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.inbound-etas {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    color: var(--color-text-muted);
+    font-size: 18px;
+}
+
+.eta-divider {
+    color: var(--color-border);
+}
+
+.inbound-leave {
+    text-align: right;
+}
+
+.leave-label {
+    display: block;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--color-text-muted);
+}
+
+.leave-value {
+    font-size: 36px;
+    font-weight: 700;
+}
+
+.inbound-row.urgent .leave-value {
+    color: #ff4444;
+    animation: pulse 1s infinite;
+}
+
+.inbound-row.soon .leave-value {
+    color: #ffaa00;
+}
+
 .dock-counts {
     display: flex;
     justify-content: space-between;
@@ -333,6 +399,24 @@ footer {
     text-align: center;
     color: #666666;
     padding: 20px;
+}
+
+@media (max-width: 720px) {
+    .inbound-row {
+        grid-template-columns: auto 1fr;
+    }
+
+    .inbound-leave {
+        grid-column: 1 / -1;
+        text-align: left;
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+    }
+
+    .leave-value {
+        font-size: 30px;
+    }
 }
 
 @keyframes pulse {

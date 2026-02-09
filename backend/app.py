@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -17,12 +18,12 @@ except ImportError:  # pragma: no cover - optional dependency
 try:
     from backend.cache import Cache
     from backend.fetchers.citibike import fetch_citibike_status
-    from backend.fetchers.mta import fetch_subway_arrivals
+    from backend.fetchers.mta import fetch_subway_arrivals_with_inbound
     from backend.health import get_health_status
 except ImportError:  # pragma: no cover - fallback for script execution
     from cache import Cache
     from fetchers.citibike import fetch_citibike_status
-    from fetchers.mta import fetch_subway_arrivals
+    from fetchers.mta import fetch_subway_arrivals_with_inbound
     from health import get_health_status
 
 
@@ -74,6 +75,11 @@ def _get_display_thresholds(config: Dict[str, Any]) -> Tuple[int, int]:
 def _get_poll_intervals(config: Dict[str, Any]) -> Tuple[int, int]:
     subway = config.get("subway", {}) if isinstance(config.get("subway"), dict) else {}
     citibike = config.get("citibike", {}) if isinstance(config.get("citibike"), dict) else {}
+    inbound = (
+        config.get("inbound_tracker", {})
+        if isinstance(config.get("inbound_tracker"), dict)
+        else {}
+    )
     subway_interval = _safe_int(subway.get("poll_interval_seconds", 30), 30)
     citibike_interval = _safe_int(citibike.get("poll_interval_seconds", 60), 60)
     return subway_interval, citibike_interval
@@ -195,6 +201,18 @@ def _build_frontend_config(config: Dict[str, Any]) -> Dict[str, Any]:
                 if isinstance(s, dict)
             ]
         },
+        "inbound_tracker": {
+            "enabled": inbound.get("enabled", True),
+            "label": inbound.get("label"),
+            "tracking_window": {
+                "north_boundary": inbound.get("tracking_window", {}).get("north_boundary")
+                if isinstance(inbound.get("tracking_window"), dict)
+                else None,
+                "south_boundary": inbound.get("tracking_window", {}).get("south_boundary")
+                if isinstance(inbound.get("tracking_window"), dict)
+                else None,
+            },
+        },
     }
 
 
@@ -204,14 +222,31 @@ def _compute_staleness_seconds(last_updated: Any, now: int) -> Optional[int]:
     return max(0, now - last_updated)
 
 
+def _format_inbound_tracking_window(config: Dict[str, Any]) -> Optional[str]:
+    inbound = config.get("inbound_tracker", {})
+    if not isinstance(inbound, dict):
+        return None
+    window = inbound.get("tracking_window", {})
+    if not isinstance(window, dict):
+        return None
+    north = window.get("north_boundary")
+    south = window.get("south_boundary")
+    if isinstance(north, str) and north.strip() and isinstance(south, str) and south.strip():
+        return f"{north.strip()} → {south.strip()}"
+    return None
+
+
 def fetch_subway_task() -> None:
     try:
         config = load_config()
-        data = fetch_subway_arrivals(config)
-        cache.set("subway", data)
-        logger.info("Subway: Fetched %s arrivals", len(data))
+        arrivals, inbound_trains = fetch_subway_arrivals_with_inbound(config)
+        cache.set("subway", arrivals)
+        cache.set("inbound", inbound_trains)
+        logger.info("Subway: Fetched %s arrivals", len(arrivals))
+        logger.info("Inbound: Fetched %s trains", len(inbound_trains))
     except Exception as exc:
         cache.record_error("subway", str(exc))
+        cache.record_error("inbound", str(exc))
         logger.error("Subway fetch failed: %s", exc)
 
 
@@ -265,6 +300,30 @@ def api_citibike() -> Any:
         }
     )
 
+
+@app.route("/api/inbound")
+def api_inbound() -> Any:
+    entry = cache.get("inbound")
+    config = load_config()
+    inbound = config.get("inbound_tracker", {}) if isinstance(config.get("inbound_tracker"), dict) else {}
+    enabled = inbound.get("enabled", True)
+    tracking_window = _format_inbound_tracking_window(config)
+    last_updated = entry.get("last_updated")
+    last_updated_iso = (
+        datetime.fromtimestamp(last_updated, tz=timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z")
+        if isinstance(last_updated, int)
+        else None
+    )
+    trains = entry.get("data", []) if enabled is not False else []
+    return jsonify(
+        {
+            "trains": trains,
+            "last_updated": last_updated_iso,
+            "tracking_window": tracking_window,
+        }
+    )
 
 @app.route("/health")
 def health_alias() -> Any:
