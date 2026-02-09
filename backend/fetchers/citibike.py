@@ -21,6 +21,9 @@ STATION_STATUS_URL = "https://gbfs.citibikenyc.com/gbfs/en/station_status.json"
 
 REQUEST_TIMEOUT_SECONDS = 10
 STALE_THRESHOLD_SECONDS = 300
+WALKING_SPEED_MPS = 1.4
+METERS_PER_MILE = 1609.34
+MINUTES_PER_MILE = METERS_PER_MILE / (WALKING_SPEED_MPS * 60)
 
 
 class StationConfig(TypedDict):
@@ -39,6 +42,8 @@ class StationStatusOutput(TypedDict):
     is_returning: bool
     last_reported: int
     percent_full: int
+    distance_miles: Optional[float]
+    walk_minutes: Optional[int]
 
 
 @dataclass(frozen=True)
@@ -191,6 +196,14 @@ def _distance_from_location(
     return _haversine_miles(lat, lng, station.lat, station.lon)
 
 
+def _walk_minutes(distance_miles: float) -> Optional[int]:
+    if not math.isfinite(distance_miles):
+        return None
+    if distance_miles <= 0:
+        return 0
+    return max(1, int(round(distance_miles * MINUTES_PER_MILE)))
+
+
 def _select_best_match(
     query: str,
     stations: Sequence[StationInfo],
@@ -341,6 +354,7 @@ def fetch_citibike_status(config: dict) -> List[StationStatusOutput]:
 
     station_info = fetch_station_information()
     station_status = fetch_station_status()
+    location = config.get("location") if isinstance(config.get("location"), dict) else None
 
     info_by_id = {station.station_id: station for station in station_info}
     status_by_id = {station.station_id: station for station in station_status}
@@ -371,6 +385,12 @@ def fetch_citibike_status(config: dict) -> List[StationStatusOutput]:
         capacity = info.capacity if info else total_bikes + status.docks_available
         name = info.name if info else str(station_cfg.get("name", ""))
         percent_full = calculate_percent_full(total_bikes, capacity)
+        distance_miles = (
+            _distance_from_location(info, location)
+            if info and location
+            else float("inf")
+        )
+        walk_minutes = _walk_minutes(distance_miles)
 
         results.append(
             {
@@ -384,10 +404,18 @@ def fetch_citibike_status(config: dict) -> List[StationStatusOutput]:
                 "is_returning": status.is_returning,
                 "last_reported": status.last_reported,
                 "percent_full": percent_full,
+                "distance_miles": None if not math.isfinite(distance_miles) else distance_miles,
+                "walk_minutes": walk_minutes,
             }
         )
 
-    results.sort(key=lambda item: item["name"].lower())
+    def _sort_key(item: StationStatusOutput) -> Tuple[int, float, str]:
+        distance = item.get("distance_miles")
+        if isinstance(distance, (float, int)) and math.isfinite(distance):
+            return (0, float(distance), item["name"].lower())
+        return (1, float("inf"), item["name"].lower())
+
+    results.sort(key=_sort_key)
     return results
 
 

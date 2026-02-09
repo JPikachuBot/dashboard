@@ -69,10 +69,37 @@ const LINE_DESTINATIONS = {
     W: { N: 'Astoria-Ditmars Blvd', S: 'Whitehall St' },
 };
 
+const DESTINATION_ABBREVIATIONS = [
+    { pattern: /Brooklyn Bridge[-–]City Hall/gi, replacement: 'Bklyn Br–City Hall' },
+    { pattern: /\bBoulevard\b/gi, replacement: 'Blvd' },
+    { pattern: /\bAvenue\b/gi, replacement: 'Av' },
+    { pattern: /\bStreet\b/gi, replacement: 'St' },
+    { pattern: /\bRoad\b/gi, replacement: 'Rd' },
+    { pattern: /\bParkway\b/gi, replacement: 'Pkwy' },
+    { pattern: /\bHeights\b/gi, replacement: 'Hts' },
+    { pattern: /\bSquare\b/gi, replacement: 'Sq' },
+    { pattern: /\bCenter\b/gi, replacement: 'Ctr' },
+    { pattern: /\bTerminal\b/gi, replacement: 'Term' },
+    { pattern: /\bJunction\b/gi, replacement: 'Jct' },
+    { pattern: /\bBridge\b/gi, replacement: 'Br' },
+    { pattern: /\bMount\b/gi, replacement: 'Mt' },
+    { pattern: /\bFort\b/gi, replacement: 'Ft' },
+    { pattern: /\bSaint\b/gi, replacement: 'St' },
+    { pattern: /\bEast\b/gi, replacement: 'E' },
+    { pattern: /\bWest\b/gi, replacement: 'W' },
+    { pattern: /\bNorth\b/gi, replacement: 'N' },
+    { pattern: /\bSouth\b/gi, replacement: 'S' },
+];
+
 function formatMinutes(minutes) {
     if (minutes <= 0) return 'Now';
     if (minutes === 1) return '1 min';
     return `${minutes} min`;
+}
+
+function formatEdgeMinutes(minutes) {
+    if (minutes <= 0) return 'Now';
+    return `${minutes}m`;
 }
 
 function getUrgencyClass(minutes) {
@@ -127,6 +154,17 @@ function resolveDestination(line, direction) {
         return null;
     }
     return lineMap[dir] || null;
+}
+
+function abbreviateDestination(destination) {
+    if (!destination) {
+        return '';
+    }
+    let abbreviated = String(destination);
+    DESTINATION_ABBREVIATIONS.forEach(({ pattern, replacement }) => {
+        abbreviated = abbreviated.replace(pattern, replacement);
+    });
+    return abbreviated;
 }
 
 function formatDirectionHeading(lines, direction, label = null, destinations = null) {
@@ -284,6 +322,10 @@ function buildSubwayMarkupFromConfig(arrivals, stationBlocks) {
         .filter(Boolean);
 
     const grouped = groupByStationBlockAndDirection(sanitizedArrivals);
+    const fallbackDirections = [
+        { code: 'N', label: 'Uptown' },
+        { code: 'S', label: 'Downtown' },
+    ];
 
     // Render blocks in config order, even if empty
     return (Array.isArray(stationBlocks) ? stationBlocks : []).map((block) => {
@@ -307,44 +349,96 @@ function buildSubwayMarkupFromConfig(arrivals, stationBlocks) {
             })
             .join('');
 
-        const directions = Array.isArray(block.directions) && block.directions.length > 0 ? block.directions : [
-            { code: 'N', label: 'Uptown' },
-            { code: 'S', label: 'Downtown' },
-        ];
+        const directions =
+            Array.isArray(block.directions) && block.directions.length > 0
+                ? block.directions
+                : fallbackDirections;
 
-        const directionEntries = directions.map((dir) => {
-            const code = String(dir.code || '').toUpperCase();
-            const label = dir.label || null;
-            const destination = dir.destination || null;
-            const trains = (grouped[blockId]?.directions?.[code] || []).slice().sort((a,b) => a.minutes_until - b.minutes_until).slice(0,2);
+        const directionLookup = new Map(
+            directions.map((dir) => [String(dir.code || '').toUpperCase(), dir]),
+        );
+        const leftDirection = directionLookup.get('N') || directions[0] || fallbackDirections[0];
+        const rightDirection =
+            directionLookup.get('S') || directions[1] || fallbackDirections[1];
 
-            const heading = formatDirectionHeading(lines, code, label, destination ? [destination] : null);
-            const arrivalsHtml = trains.length === 0
-                ? `<div class="arrival empty"><span class="time muted">—</span></div>`
-                : trains.map((train) => {
-                    const lineClass = normalizeLineClass(train.line);
-                    const urgencyClass = getUrgencyClass(train.minutes_until);
-                    return `
-                        <div class="arrival ${urgencyClass}">
-                            <span class="line-indicator line-${lineClass}">${escapeHtml(String(train.line).toUpperCase())}</span>
-                            <span class="direction-inline">${escapeHtml(heading)}</span>
-                            <span class="time">${formatMinutes(train.minutes_until)}</span>
-                        </div>`;
-                }).join('');
+        const leftCode = String(leftDirection.code || '').toUpperCase();
+        const rightCode = String(rightDirection.code || '').toUpperCase();
+
+        const leftTrains = (grouped[blockId]?.directions?.[leftCode] || [])
+            .slice()
+            .sort((a, b) => a.minutes_until - b.minutes_until)
+            .slice(0, 2);
+        const rightTrains = (grouped[blockId]?.directions?.[rightCode] || [])
+            .slice()
+            .sort((a, b) => a.minutes_until - b.minutes_until)
+            .slice(0, 2);
+
+        const rows = Array.from({ length: 2 }, (_, index) => {
+            const leftTrain = leftTrains[index] || null;
+            const rightTrain = rightTrains[index] || null;
+
+            const leftDestination = leftTrain
+                ? abbreviateDestination(
+                      leftTrain.direction_destination ||
+                          resolveDestination(leftTrain.line, leftTrain.direction),
+                  )
+                : '';
+            const rightDestination = rightTrain
+                ? abbreviateDestination(
+                      rightTrain.direction_destination ||
+                          resolveDestination(rightTrain.line, rightTrain.direction),
+                  )
+                : '';
+
+            const leftLine = leftTrain ? String(leftTrain.line).toUpperCase() : '';
+            const rightLine = rightTrain ? String(rightTrain.line).toUpperCase() : '';
+            const leftLineClass = leftTrain ? normalizeLineClass(leftLine) : '';
+            const rightLineClass = rightTrain ? normalizeLineClass(rightLine) : '';
+
+            const leftUrgency = leftTrain ? getUrgencyClass(leftTrain.minutes_until) : '';
+            const rightUrgency = rightTrain ? getUrgencyClass(rightTrain.minutes_until) : '';
 
             return `
-                <div class="direction-group">
-                    ${arrivalsHtml}
-                </div>`;
+                <div class="station-row arrival-row">
+                    <div class="station-side left ${leftUrgency}">
+                        <span class="eta">${leftTrain ? formatEdgeMinutes(leftTrain.minutes_until) : ''}</span>
+                        <div class="train-dest">
+                            ${leftTrain ? `<span class="line-indicator line-${leftLineClass}">${escapeHtml(leftLine)}</span>` : ''}
+                            <span class="destination-text">${escapeHtml(leftDestination)}</span>
+                        </div>
+                    </div>
+                    <div class="station-divider"></div>
+                    <div class="station-side right ${rightUrgency}">
+                        <div class="train-dest">
+                            ${rightTrain ? `<span class="line-indicator line-${rightLineClass}">${escapeHtml(rightLine)}</span>` : ''}
+                            <span class="destination-text">${escapeHtml(rightDestination)}</span>
+                        </div>
+                        <span class="eta">${rightTrain ? formatEdgeMinutes(rightTrain.minutes_until) : ''}</span>
+                    </div>
+                </div>
+            `;
         }).join('');
 
         return `
             <div class="station-group">
-                <div class="station-header">
-                    <div class="line-badges">${lineBadges}</div>
-                    <span class="station-name">${escapeHtml(stationName)}${escapeHtml(serviceNote)}</span>
+                <div class="station-row station-header-row">
+                    <div class="station-side left">
+                        <span class="direction-label">${escapeHtml(leftDirection.label || 'Uptown')}</span>
+                    </div>
+                    <div class="station-center">
+                        <div class="line-badges">${lineBadges}</div>
+                        <span class="station-name">
+                            <span class="station-name-text">${escapeHtml(stationName)}${escapeHtml(serviceNote)}</span>
+                            ${Number.isFinite(block.walk_minutes) && Number.isFinite(block.distance_miles)
+                                ? `<span class="station-walk">— ${Math.round(block.walk_minutes)} min (${Number(block.distance_miles).toFixed(1)} mi) away</span>`
+                                : ''}
+                        </span>
+                    </div>
+                    <div class="station-side right">
+                        <span class="direction-label">${escapeHtml(rightDirection.label || 'Downtown')}</span>
+                    </div>
                 </div>
-                <div class="direction-groups">${directionEntries}</div>
+                ${rows}
             </div>`;
     }).join('');
 }
@@ -365,10 +459,22 @@ function buildCitibikeMarkup(stations) {
             const docksAvailable = clampNumber(station.docks_available, 0, 9999);
             const isRenting = station.is_renting !== false;
             const isReturning = station.is_returning !== false;
+            const walkMinutes = Number.isFinite(station.walk_minutes)
+                ? Math.max(0, Math.round(station.walk_minutes))
+                : null;
+            const distanceMiles = Number.isFinite(station.distance_miles)
+                ? Math.max(0, station.distance_miles)
+                : null;
+            const walkLabel = walkMinutes !== null && distanceMiles !== null
+                ? `— ${walkMinutes} min (${distanceMiles.toFixed(1)} mi) away`
+                : '';
 
             return `
                 <div class="citibike-station">
-                    <h3 class="dock-name">${escapeHtml(name)}</h3>
+                    <h3 class="dock-name">
+                        <span class="dock-name-text">${escapeHtml(name)}</span>
+                        ${walkLabel ? `<span class="dock-walk">${escapeHtml(walkLabel)}</span>` : ''}
+                    </h3>
                     <div class="dock-status">
                         <div class="progress-bar">
                             <div class="progress-fill ${isCritical ? 'critical' : ''}" style="width: ${percentFull}%"></div>
@@ -485,6 +591,7 @@ async function fetchConfig() {
         const data = json.data || {};
         const display = data.display || {};
         const location = data.location || {};
+        frontendConfig = data;
 
         runtimeConfig.refreshIntervalMs = parsePositiveInt(
             display.refresh_interval_ms,
@@ -526,7 +633,10 @@ async function fetchSubwayData() {
         if (!json || json.success !== true) {
             throw new Error('Unexpected response');
         }
-        const markup = buildSubwayMarkup(json.data);
+        const stationBlocks = frontendConfig?.subway?.stations;
+        const markup = Array.isArray(stationBlocks) && stationBlocks.length > 0
+            ? buildSubwayMarkupFromConfig(json.data, stationBlocks)
+            : buildSubwayMarkup(json.data);
         subwayContainer.innerHTML = markup;
         lastSubwayMarkup = markup;
         if (typeof json.staleness_seconds === 'number') {

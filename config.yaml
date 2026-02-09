@@ -7,6 +7,8 @@ subway:
   stations:
   - id: wall_45
     name: Wall St
+    lat: 40.707557
+    lng: -74.011862
     lines:
     - '4'
     - '5'
@@ -19,6 +21,8 @@ subway:
       stop_id: 419S
   - id: wall_23
     name: Wall St
+    lat: 40.706821
+    lng: -74.0091
     lines:
     - '2'
     - '3'
@@ -31,6 +35,8 @@ subway:
       stop_id: 230S
   - id: broad_j
     name: Broad St
+    lat: 40.706476
+    lng: -74.011056
     lines:
     - J
     directions:
@@ -39,6 +45,8 @@ subway:
       stop_id: M23S
   - id: rector_1
     name: Rector St
+    lat: 40.707513
+    lng: -74.013783
     lines:
     - '1'
     directions:
@@ -50,6 +58,8 @@ subway:
       stop_id: 139S
   - id: rector_rw
     name: Rector St
+    lat: 40.70722
+    lng: -74.013342
     lines:
     - R
     - W
@@ -62,6 +72,8 @@ subway:
       stop_id: R26S
   - id: fulton_ac
     name: Fulton St
+    lat: 40.710197
+    lng: -74.007691
     lines:
     - A
     - C
