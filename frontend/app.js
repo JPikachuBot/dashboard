@@ -6,6 +6,7 @@ const DEFAULT_STALENESS_CRITICAL_SEC = 120;
 
 const subwayContainer = document.querySelector('[data-subway-container]');
 const citibikeContainer = document.querySelector('[data-citibike-container]');
+const inboundContainer = document.querySelector('[data-inbound-container]');
 const stalenessDot = document.querySelector('[data-staleness-dot]');
 const stalenessText = document.querySelector('[data-staleness-text]');
 const locationText = document.querySelector('[data-location-text]');
@@ -20,6 +21,7 @@ const runtimeConfig = {
 let frontendConfig = null;
 let lastSubwayMarkup = '';
 let lastCitibikeMarkup = '';
+let lastInboundMarkup = '';
 let inFlight = false;
 let refreshTimerId = null;
 let lastStalenessSeconds = null;
@@ -105,6 +107,12 @@ function formatEdgeMinutes(minutes) {
 function getUrgencyClass(minutes) {
     if (minutes <= 1) return 'urgent';
     if (minutes <= 3) return 'soon';
+    return '';
+}
+
+function getLeaveUrgencyClass(minutes) {
+    if (minutes <= 1) return 'urgent';
+    if (minutes <= 4) return 'soon';
     return '';
 }
 
@@ -494,6 +502,82 @@ function buildCitibikeMarkup(stations) {
         .join('');
 }
 
+function formatLeaveBy(minutes) {
+    if (minutes <= 0) return 'Leave now';
+    if (minutes === 1) return 'Leave in 1 min';
+    return `Leave in ${minutes} min`;
+}
+
+function buildInboundMarkup(trains, trackingWindow) {
+    const safeTrains = Array.isArray(trains) ? trains : [];
+    const approaching = safeTrains.filter((train) => train.window_bucket === 'approaching_start');
+    const inflight = safeTrains.filter((train) => train.window_bucket === 'inflight');
+
+    if (approaching.length === 0 && inflight.length === 0) {
+        const windowLabel = trackingWindow ? `between ${escapeHtml(trackingWindow)}` : 'inbound';
+        return `<p class="no-data">No inbound 4/5 trains ${windowLabel}</p>`;
+    }
+
+    const renderRow = (train) => {
+        const routeId = String(train.route_id || '').toUpperCase() || '?';
+        const lineClass = normalizeLineClass(routeId);
+        const currentPosition = train.current_position || 'In transit';
+        const wallEta = clampNumber(train.wall_st_eta, 0, 9999);
+        const fultonEtaRaw = train.fulton_st_eta;
+        const hasFultonEta = Number.isFinite(fultonEtaRaw);
+        const fultonEta = hasFultonEta ? clampNumber(fultonEtaRaw, 0, 9999) : null;
+        const leaveByWall = clampNumber(train.leave_by_wall, 0, 9999);
+        const leaveByFultonRaw = train.leave_by_fulton;
+        const leaveByFulton = hasFultonEta && Number.isFinite(leaveByFultonRaw)
+            ? clampNumber(leaveByFultonRaw, 0, 9999)
+            : null;
+        const urgencyClass = getLeaveUrgencyClass(leaveByWall);
+        const etaSegments = [
+            `Wall ${formatMinutes(wallEta)} (${escapeHtml(formatLeaveBy(leaveByWall))})`,
+        ];
+        if (hasFultonEta) {
+            etaSegments.push(
+                `Fulton ${formatMinutes(fultonEta)} (${escapeHtml(formatLeaveBy(leaveByFulton))})`,
+            );
+        }
+        const etaLine = etaSegments.join(' · ');
+
+        return `
+            <div class="inbound-row">
+                <div class="inbound-left">
+                    <span class="line-indicator line-${lineClass}">${escapeHtml(routeId)}</span>
+                    <span class="inbound-position">${escapeHtml(currentPosition)}</span>
+                </div>
+                <div class="inbound-right">
+                    <span class="inbound-eta">${etaLine}</span>
+                    <span class="inbound-leave ${urgencyClass}">${escapeHtml(formatLeaveBy(leaveByWall))}</span>
+                </div>
+            </div>
+        `;
+    };
+
+    const renderGroup = (title, rows) => {
+        if (rows.length === 0) {
+            return '';
+        }
+        return `
+            <div class="inbound-group">
+                <div class="inbound-group-header">
+                    <span class="inbound-group-title">${escapeHtml(title)}</span>
+                </div>
+                <div class="inbound-group-rows">
+                    ${rows.map(renderRow).join('')}
+                </div>
+            </div>
+        `;
+    };
+
+    return [
+        renderGroup('Next @ 42', approaching),
+        renderGroup('In flight (42 → Fulton → Wall)', inflight)
+    ].filter(Boolean).join('');
+}
+
 function setStalenessStatus(statusClass, text) {
     if (stalenessDot) {
         stalenessDot.className = `staleness-dot ${statusClass}`.trim();
@@ -670,6 +754,25 @@ async function fetchCitibikeData() {
     }
 }
 
+async function fetchInboundData() {
+    if (!inboundContainer) {
+        return;
+    }
+    try {
+        const response = await fetch(`${API_BASE}/api/inbound`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const json = await response.json();
+        const markup = buildInboundMarkup(json.trains, json.tracking_window);
+        inboundContainer.innerHTML = markup;
+        lastInboundMarkup = markup;
+    } catch (error) {
+        console.error('Inbound fetch failed:', error);
+        renderError(inboundContainer, 'Unable to load inbound trains', lastInboundMarkup);
+    }
+}
+
 async function fetchHealthData() {
     try {
         const response = await fetch(`${API_BASE}/api/health`);
@@ -702,6 +805,7 @@ async function fetchAllData() {
         await Promise.allSettled([
             fetchSubwayData(),
             fetchCitibikeData(),
+            fetchInboundData(),
             fetchHealthData(),
         ]);
     } finally {

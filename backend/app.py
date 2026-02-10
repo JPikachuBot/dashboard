@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -17,12 +18,14 @@ except ImportError:  # pragma: no cover - optional dependency
 try:
     from backend.cache import Cache
     from backend.fetchers.citibike import fetch_citibike_status
-    from backend.fetchers.mta import fetch_subway_arrivals
+    from backend.fetchers.inbound import fetch_inbound_trains
+    from backend.fetchers.mta import fetch_mta_feeds, fetch_subway_arrivals, get_required_feeds_from_config
     from backend.health import get_health_status
 except ImportError:  # pragma: no cover - fallback for script execution
     from cache import Cache
     from fetchers.citibike import fetch_citibike_status
-    from fetchers.mta import fetch_subway_arrivals
+    from fetchers.inbound import fetch_inbound_trains
+    from fetchers.mta import fetch_mta_feeds, fetch_subway_arrivals, get_required_feeds_from_config
     from health import get_health_status
 
 
@@ -207,11 +210,21 @@ def _compute_staleness_seconds(last_updated: Any, now: int) -> Optional[int]:
 def fetch_subway_task() -> None:
     try:
         config = load_config()
-        data = fetch_subway_arrivals(config)
+        now_timestamp = int(time.time())
+        feed_names = get_required_feeds_from_config(config)
+        api_key = __import__("os").environ.get("MTA_API_KEY")
+        feeds = fetch_mta_feeds(feed_names, api_key, now_timestamp)
+
+        data = fetch_subway_arrivals(config, feeds_by_name=feeds, now_timestamp=now_timestamp)
         cache.set("subway", data)
         logger.info("Subway: Fetched %s arrivals", len(data))
+
+        inbound = fetch_inbound_trains(config, feeds_by_name=feeds, now_timestamp=now_timestamp)
+        cache.set("inbound", inbound)
+        logger.info("Inbound: Fetched %s trains", len(inbound))
     except Exception as exc:
         cache.record_error("subway", str(exc))
+        cache.record_error("inbound", str(exc))
         logger.error("Subway fetch failed: %s", exc)
 
 
@@ -262,6 +275,50 @@ def api_citibike() -> Any:
             "data": entry["data"],
             "last_updated": entry["last_updated"],
             "staleness_seconds": staleness_seconds,
+        }
+    )
+
+
+def _format_iso_utc(timestamp: Optional[int]) -> Optional[str]:
+    if not isinstance(timestamp, int):
+        return None
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _format_tracking_window(config: Dict[str, Any]) -> str:
+    inbound = config.get("inbound_tracker", {})
+    if not isinstance(inbound, dict):
+        return "Inbound"
+    tracking = inbound.get("tracking_window", {})
+    if not isinstance(tracking, dict):
+        return "Inbound"
+
+    start = tracking.get("start_station") or tracking.get("north_boundary")
+    end = tracking.get("end_station") or tracking.get("south_boundary")
+    include_next = tracking.get("include_next_at_start")
+
+    if isinstance(start, str) and isinstance(end, str):
+        suffix = ""
+        try:
+            include_next_int = int(include_next)
+        except (TypeError, ValueError):
+            include_next_int = 0
+        if include_next_int > 0:
+            suffix = f" (+{include_next_int} @ start)"
+        return f"{start} → {end}{suffix}"
+
+    return "Inbound"
+
+
+@app.route("/api/inbound")
+def api_inbound() -> Any:
+    entry = cache.get("inbound")
+    config = load_config()
+    return jsonify(
+        {
+            "trains": entry["data"],
+            "last_updated": _format_iso_utc(entry["last_updated"]),
+            "tracking_window": _format_tracking_window(config),
         }
     )
 

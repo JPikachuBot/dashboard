@@ -424,7 +424,34 @@ def _expand_station_directions(stations: Sequence[StationBlock]) -> List[Station
     return expanded
 
 
-def fetch_subway_arrivals(config: dict) -> List[Arrival]:
+def fetch_mta_feeds(
+    feed_names: Sequence[str],
+    api_key: Optional[str],
+    now_timestamp: Optional[int] = None,
+) -> Dict[str, NYCTFeed]:
+    timestamp = now_timestamp if now_timestamp is not None else int(time.time())
+    feeds: Dict[str, NYCTFeed] = {}
+    for feed_name in feed_names:
+        feed = _fetch_feed(feed_name, api_key, FEED_TIMEOUT_SECONDS)
+        feed_timestamp = int(feed.last_generated.timestamp())
+        if timestamp - feed_timestamp > STALE_THRESHOLD_SECONDS:
+            raise FeedStaleError(
+                f"Feed {feed_name} is stale: generated at {feed.last_generated}."
+            )
+        feeds[feed_name] = feed
+    return feeds
+
+
+def get_required_feeds_from_config(config: dict) -> List[str]:
+    stations = _extract_station_blocks(config)
+    return get_required_feeds(stations)
+
+
+def fetch_subway_arrivals(
+    config: dict,
+    feeds_by_name: Optional[Dict[str, NYCTFeed]] = None,
+    now_timestamp: Optional[int] = None,
+) -> List[Arrival]:
     stations = _extract_station_blocks(config)
     station_directions = _expand_station_directions(stations)
     feed_names = get_required_feeds(stations)
@@ -433,21 +460,20 @@ def fetch_subway_arrivals(config: dict) -> List[Arrival]:
     if not api_key:
         logger.info("MTA_API_KEY is not set; fetching feeds without authentication.")
 
-    now_timestamp = int(time.time())
+    now_timestamp = now_timestamp if now_timestamp is not None else int(time.time())
     fetched_timestamp = now_timestamp
     candidates_by_station: Dict[int, List[ArrivalCandidate]] = {
         idx: [] for idx in range(len(station_directions))
     }
 
     try:
+        if feeds_by_name is None:
+            feeds_by_name = fetch_mta_feeds(feed_names, api_key, now_timestamp)
         for feed_name in feed_names:
-            feed = _fetch_feed(feed_name, api_key, FEED_TIMEOUT_SECONDS)
-            feed_timestamp = int(feed.last_generated.timestamp())
-            if now_timestamp - feed_timestamp > STALE_THRESHOLD_SECONDS:
-                raise FeedStaleError(
-                    f"Feed {feed_name} is stale: generated at {feed.last_generated}."
-                )
-
+            feed = feeds_by_name.get(feed_name) if feeds_by_name else None
+            if feed is None:
+                logger.warning("Feed %s missing from provided feed cache.", feed_name)
+                continue
             feed_candidates = _collect_candidates(feed, station_directions, now_timestamp)
             for idx, candidates in feed_candidates.items():
                 candidates_by_station[idx].extend(candidates)
