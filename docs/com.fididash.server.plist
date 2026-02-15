@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.fididash.server</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/jacksonbutler/Projects/dashboard/venv/bin/python</string>
+        <string>/Users/jacksonbutler/Projects/dashboard/backend/app.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/jacksonbutler/Projects/dashboard</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOST</key>
+        <string>0.0.0.0</string>
+        <key>PORT</key>
+        <string>5000</string>
+        <!-- <key>MTA_API_KEY</key> -->
+        <!-- <string>YOUR_API_KEY_HERE</string> -->
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/fidi-dash.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/fidi-dash-error.log</string>
+</dict>
+</plist>

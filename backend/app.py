@@ -376,9 +376,11 @@ def main() -> None:
 
     _log_startup_health(config)
 
-    logger.info("Flask server starting on http://localhost:5000")
-    port = int(__import__("os").environ.get("PORT", "5000"))
-    app.run(host="127.0.0.1", port=port)
+    environ = __import__("os").environ
+    host = environ.get("HOST", "0.0.0.0")
+    port = int(environ.get("PORT", "5000"))
+    logger.info("Flask server starting on http://%s:%s", host, port)
+    app.run(host=host, port=port)
 
 
 if __name__ == "__main__":
