@@ -8,7 +8,7 @@
 
 ## Overview
 
-The dashboard is already running at `http://127.0.0.1:5000/`. Deployment means two things:
+The dashboard is already running at `http://127.0.0.1:5050/`. Deployment means two things:
 
 1. Make it accessible on the local network so the iPad can reach it
 2. Lock the iPad into a kiosk displaying the dashboard
@@ -41,7 +41,7 @@ ipconfig getifaddr en0
 This returns something like `192.168.1.XX`. That's the dashboard URL:
 
 ```
-http://192.168.1.XX:5000
+http://192.168.1.XX:5050
 ```
 
 **Test it:** Open that URL from any other device on your network (phone, iPad, laptop). You should see the dashboard.
@@ -123,7 +123,7 @@ This will auto-start on login and auto-restart if the process crashes.
 Navigate to:
 
 ```
-http://192.168.1.XX:5000
+http://192.168.1.XX:5050
 ```
 
 (Replace with your Mac Mini's actual IP from step 1.2.)
@@ -180,7 +180,7 @@ Since the dashboard uses a dark theme, screen burn-in and brightness aren't majo
 
 ### 1) LAN Access Test
 
-1. On the iPad, open Safari and go to `http://192.168.1.XX:5000`
+1. On the iPad, open Safari and go to `http://192.168.1.XX:5050`
 2. Confirm the dashboard loads within a few seconds.
 3. Wait for at least one auto-refresh (default 15 seconds) and confirm the page updates without errors.
 
@@ -189,7 +189,7 @@ Since the dashboard uses a dark theme, screen burn-in and brightness aren't majo
 1. Reboot the Mac Mini.
 2. Log in to the Mac Mini (LaunchAgents run on user login).
 3. Wait ~30–60 seconds for the service to start.
-4. On the iPad, reload `http://192.168.1.XX:5000` and confirm the dashboard is reachable again.
+4. On the iPad, reload `http://192.168.1.XX:5050` and confirm the dashboard is reachable again.
 
 ---
 
@@ -230,20 +230,20 @@ Since the dashboard uses a dark theme, screen burn-in and brightness aren't majo
 
 | Component | Detail |
 |---|---|
-| Dashboard URL | `http://192.168.1.XX:5000` |
+| Dashboard URL | `http://192.168.1.XX:5050` |
 | Mac Mini service | `~/Library/LaunchAgents/com.fididash.server.plist` |
 | Service logs | `/tmp/fidi-dash.log` and `/tmp/fidi-dash-error.log` |
 | iPad kiosk exit | Triple-click Side Button → enter passcode |
-| Flask bind address | `0.0.0.0:5000` |
+| Flask bind address | `0.0.0.0:5050` |
 | Frontend refresh | Every 15 seconds (automatic) |
 
 ---
 
 ## Checklist
 
-- [ ] Flask binds to `0.0.0.0:5000`
+- [ ] Flask binds to `0.0.0.0:5050`
 - [ ] Mac Mini has a static IP or DHCP reservation
-- [ ] Dashboard accessible from iPad via `http://<ip>:5000`
+- [ ] Dashboard accessible from iPad via `http://<ip>:5050`
 - [ ] Launch Agent created and loaded (auto-start + auto-restart)
 - [ ] iPad: shortcut added to Home Screen
 - [ ] iPad: Auto-Lock set to Never
