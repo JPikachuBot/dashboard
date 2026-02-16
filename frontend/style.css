@@ -119,6 +119,15 @@ section {
     border-right: 5px solid var(--color-border);
 }
 
+.station-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 4px;
+}
+
 .station-divider {
     width: 12px;
     height: 100%;
@@ -145,10 +154,7 @@ section {
 
 .station-name {
     font-size: 28px;
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 10px;
+    font-weight: 700;
 }
 
 .station-walk {
@@ -346,8 +352,16 @@ section {
 +    background: rgba(201, 255, 110, 0.08);
 +}
 
-.inbound-position {
-    font-size: 24px;
+.inbound-leave-for {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.inbound-leave-for-text {
+    font-size: 18px;
+    color: var(--color-text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -357,18 +371,53 @@ section {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 6px;
+    gap: 8px;
     text-align: right;
 }
 
-.inbound-eta {
-    font-size: 20px;
+.inbound-stations {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.inbound-station-line {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.inbound-station-name {
+    font-size: 18px;
+    color: var(--color-text-muted);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.inbound-station-time {
+    font-size: 34px;
+    font-weight: 800;
+}
+
+.inbound-station-time.urgent {
+    color: #ff4444;
+    animation: pulse 1s infinite;
+}
+
+.inbound-station-time.soon {
+    color: #ffaa00;
+}
+
+.inbound-station-arrival {
+    font-size: 18px;
     color: var(--color-text-muted);
 }
 
 .inbound-leave {
-    font-size: 34px;
+    font-size: 20px;
     font-weight: 700;
+    color: var(--color-text-muted);
 }
 
 .inbound-leave.urgent {

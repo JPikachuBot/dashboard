@@ -141,6 +141,9 @@ def _build_frontend_config(config: Dict[str, Any]) -> Dict[str, Any]:
         citibike.get("stations", []) if isinstance(citibike.get("stations"), list) else []
     )
 
+    elevator_buffer_minutes = _safe_int(subway.get("elevator_buffer_minutes", 3), 3)
+    elevator_buffer_minutes = max(0, elevator_buffer_minutes)
+
     subway_blocks: list[dict[str, Any]] = []
     for st in stations:
         if not isinstance(st, dict):
@@ -154,6 +157,8 @@ def _build_frontend_config(config: Dict[str, Any]) -> Dict[str, Any]:
         if home_lat is not None and home_lng is not None and st_lat is not None and st_lng is not None:
             distance_miles = _haversine_miles(home_lat, home_lng, st_lat, st_lng)
             walk_minutes = _walk_minutes_from_miles(distance_miles)
+            if walk_minutes is not None:
+                walk_minutes += elevator_buffer_minutes
 
         subway_blocks.append(
             {

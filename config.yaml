@@ -4,6 +4,9 @@ location:
   lng: -74.0113
 subway:
   poll_interval_seconds: 30
+  # Extra time to reach platform (elevators, vertical travel, etc.).
+  # Added to computed walk_minutes for every configured station.
+  elevator_buffer_minutes: 3
   stations:
   - id: wall_45
     name: Wall St
@@ -43,6 +46,9 @@ subway:
     - code: S
       label: Downtown
       stop_id: M23S
+    - code: N
+      label: Uptown
+      stop_id: M23N
   - id: rector_1
     name: Rector St
     lat: 40.707513
