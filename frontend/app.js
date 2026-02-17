@@ -149,6 +149,19 @@ function resolveDirectionLabel(lines, direction) {
     return 'Unknown direction';
 }
 
+function formatEndpointLabel(lines, label) {
+    const raw = String(label || '').trim();
+    if (!raw) return '';
+
+    // Hide generic labels; these are already provided by the column headers.
+    const upper = raw.toUpperCase();
+    if (upper === 'UPTOWN' || upper === 'DOWNTOWN') return '';
+
+    const lineList = Array.isArray(lines) ? lines.map((l) => String(l || '').trim()).filter(Boolean) : [];
+    const prefix = lineList.length === 1 ? `(${lineList[0].toUpperCase()}) ` : '';
+    return `${prefix}${raw}`;
+}
+
 function resolveDestination(line, direction) {
     const lineKey = String(line || '').toUpperCase();
     const dir = String(direction || '').toUpperCase();
@@ -448,10 +461,8 @@ function buildSubwayMarkupFromConfig(arrivals, stationBlocks) {
             <div class="station-group">
                 <div class="station-row station-header-row">
                     <div class="station-side left">
-                        <div class="direction-stack">
-                            <span class="direction-label">DOWNTOWN</span>
-                            <span class="direction-sublabel">${escapeHtml(leftDirection.label || '')}</span>
-                        </div>
+                        <span class="direction-label">DOWNTOWN</span>
+                        <span class="direction-endpoint">${escapeHtml(formatEndpointLabel(lines, leftDirection.label))}</span>
                     </div>
                     <div class="station-center">
                         <div class="line-badges">${lineBadges}</div>
@@ -463,10 +474,8 @@ function buildSubwayMarkupFromConfig(arrivals, stationBlocks) {
                         </div>
                     </div>
                     <div class="station-side right">
-                        <div class="direction-stack">
-                            <span class="direction-label">UPTOWN</span>
-                            <span class="direction-sublabel">${escapeHtml(rightDirection.label || '')}</span>
-                        </div>
+                        <span class="direction-endpoint">${escapeHtml(formatEndpointLabel(lines, rightDirection.label))}</span>
+                        <span class="direction-label">UPTOWN</span>
                     </div>
                 </div>
                 ${rows}
