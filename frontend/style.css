@@ -188,24 +188,6 @@ section {
     text-transform: uppercase;
 }
 
-.direction-endpoint {
-    font-size: 18px;
-    color: var(--color-text-muted);
-    letter-spacing: 0;
-    text-transform: none;
-}
-
-/* Header row alignment: endpoint labels should hug the center divider */
-.station-header-row .station-side.left .direction-endpoint {
-    justify-self: end;
-    text-align: right;
-}
-
-.station-header-row .station-side.right .direction-endpoint {
-    justify-self: start;
-    text-align: left;
-}
-
 /* Keep the right-side column header aligned to the outer edge */
 .station-header-row .station-side.right .direction-label {
     justify-self: end;
