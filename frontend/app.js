@@ -110,11 +110,6 @@ function getUrgencyClass(minutes) {
     return '';
 }
 
-function getLeaveUrgencyClass(minutes) {
-    if (minutes <= 1) return 'urgent';
-    if (minutes <= 4) return 'soon';
-    return '';
-}
 
 function groupByStationBlockAndDirection(arrivals) {
     return arrivals.reduce((acc, arrival) => {
@@ -524,82 +519,58 @@ function buildCitibikeMarkup(stations) {
         .join('');
 }
 
-function formatLeaveBy(minutes) {
-    if (minutes <= 0) return 'Leave now';
-    if (minutes === 1) return 'Leave in 1 min';
-    return `Leave in ${minutes} min`;
-}
+function buildInboundMarkup(nextAt42, inFlight, trackingWindow) {
+    const safeNext = Array.isArray(nextAt42) ? nextAt42 : [];
+    const safeInflight = Array.isArray(inFlight) ? inFlight : [];
 
-function buildInboundMarkup(trains, trackingWindow) {
-    const safeTrains = Array.isArray(trains) ? trains : [];
-    const approaching = safeTrains.filter((train) => train.window_bucket === 'approaching_start');
-    const inflight = safeTrains.filter((train) => train.window_bucket === 'inflight');
-
-    if (approaching.length === 0 && inflight.length === 0) {
-        const windowLabel = trackingWindow ? `between ${escapeHtml(trackingWindow)}` : 'inbound';
+    if (safeNext.length === 0 && safeInflight.length === 0) {
+        const windowLabel = trackingWindow?.in_flight
+            ? `(${escapeHtml(trackingWindow.in_flight)})`
+            : '';
         return `<p class="no-data">No inbound 4/5 trains ${windowLabel}</p>`;
     }
 
-    const renderRow = (train) => {
+    const renderEtaItem = (label, minutes) => {
+        const hasMinutes = Number.isFinite(minutes);
+        const safeMinutes = hasMinutes ? clampNumber(minutes, 0, 9999) : null;
+        const urgencyClass = hasMinutes ? getUrgencyClass(safeMinutes) : '';
+        const value = hasMinutes ? formatEdgeMinutes(safeMinutes) : '—';
+        return `
+            <div class="inbound-eta">
+                <span class="inbound-eta-label">${escapeHtml(label)}</span>
+                <span class="inbound-eta-value ${urgencyClass}">${escapeHtml(value)}</span>
+            </div>
+        `;
+    };
+
+    const renderRow = (train, includeGct) => {
         const routeId = String(train.route_id || '').toUpperCase() || '?';
         const lineClass = normalizeLineClass(routeId);
         const currentPosition = train.current_position || 'In transit';
+        const fultonEta = Number.isFinite(train.fulton_eta) ? train.fulton_eta : null;
+        const wallEta = Number.isFinite(train.wall_eta) ? train.wall_eta : null;
+        const gctEta = Number.isFinite(train.gct_42_eta) ? train.gct_42_eta : null;
 
-        const wallEta = clampNumber(train.wall_st_eta, 0, 9999);
-        const fultonEtaRaw = train.fulton_st_eta;
-        const hasFultonEta = Number.isFinite(fultonEtaRaw);
-        const fultonEta = hasFultonEta ? clampNumber(fultonEtaRaw, 0, 9999) : null;
-
-        const leaveByWall = clampNumber(train.leave_by_wall, 0, 9999);
-        const leaveByFultonRaw = train.leave_by_fulton;
-        const leaveByFulton = hasFultonEta && Number.isFinite(leaveByFultonRaw)
-            ? clampNumber(leaveByFultonRaw, 0, 9999)
-            : null;
-
-        const urgencyClass = getLeaveUrgencyClass(leaveByWall);
-
-        const leaveForLabel = currentPosition.startsWith('Approaching ')
-            ? `Leave for ${currentPosition.replace(/^Approaching\s+/i, '')}`
-            : `Leave for ${currentPosition}`;
-
-        const renderStationLine = (stationName, leaveBy, eta, extraClass = '') => {
-            if (leaveBy == null || eta == null) {
-                return '';
-            }
-            return `
-                <div class="inbound-station-line ${extraClass}">
-                    <span class="inbound-station-name">${escapeHtml(stationName)}</span>
-                    <span class="inbound-station-time ${getLeaveUrgencyClass(leaveBy)}">${escapeHtml(formatEdgeMinutes(leaveBy))}</span>
-                    <span class="inbound-station-arrival">(${escapeHtml(formatEdgeMinutes(eta))})</span>
-                </div>
-            `;
-        };
-
-        // Order: Fulton first, then Wall
-        const stationLines = [
-            hasFultonEta ? renderStationLine('Fulton', leaveByFulton, fultonEta) : '',
-            renderStationLine('Wall', leaveByWall, wallEta),
+        const etaItems = [
+            includeGct ? renderEtaItem('42nd', gctEta) : '',
+            renderEtaItem('Fulton', fultonEta),
+            renderEtaItem('Wall', wallEta),
         ].filter(Boolean).join('');
 
         return `
             <div class="inbound-row">
                 <div class="inbound-left">
                     <span class="line-indicator line-${lineClass}">${escapeHtml(routeId)}</span>
-                    <div class="inbound-leave-for">
-                        <span class="inbound-leave-for-text">${escapeHtml(leaveForLabel)}</span>
-                    </div>
+                    <span class="inbound-position">${escapeHtml(currentPosition)}</span>
                 </div>
-                <div class="inbound-right">
-                    <div class="inbound-stations">
-                        ${stationLines}
-                    </div>
-                    <div class="inbound-leave ${urgencyClass}">Leave in ${escapeHtml(formatEdgeMinutes(leaveByWall))}</div>
+                <div class="inbound-etas">
+                    ${etaItems}
                 </div>
             </div>
         `;
     };
 
-    const renderGroup = (title, rows) => {
+    const renderGroup = (title, rows, includeGct) => {
         if (rows.length === 0) {
             return '';
         }
@@ -609,15 +580,15 @@ function buildInboundMarkup(trains, trackingWindow) {
                     <span class="inbound-group-title">${escapeHtml(title)}</span>
                 </div>
                 <div class="inbound-group-rows">
-                    ${rows.map(renderRow).join('')}
+                    ${rows.map((row) => renderRow(row, includeGct)).join('')}
                 </div>
             </div>
         `;
     };
 
     return [
-        renderGroup('Next @ 42', approaching),
-        renderGroup('In flight (42 → Fulton → Wall)', inflight)
+        renderGroup('NEXT @ 42ND ST', safeNext, true),
+        renderGroup('IN-FLIGHT (42ND → WALL)', safeInflight, false),
     ].filter(Boolean).join('');
 }
 
@@ -807,7 +778,7 @@ async function fetchInboundData() {
             throw new Error(`HTTP ${response.status}`);
         }
         const json = await response.json();
-        const markup = buildInboundMarkup(json.trains, json.tracking_window);
+        const markup = buildInboundMarkup(json.next_at_42, json.in_flight, json.tracking_window);
         inboundContainer.innerHTML = markup;
         lastInboundMarkup = markup;
     } catch (error) {

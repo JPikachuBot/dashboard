@@ -226,7 +226,9 @@ def fetch_subway_task() -> None:
 
         inbound = fetch_inbound_trains(config, feeds_by_name=feeds, now_timestamp=now_timestamp)
         cache.set("inbound", inbound)
-        logger.info("Inbound: Fetched %s trains", len(inbound))
+        next_count = len(inbound.get("next_at_42", []))
+        inflight_count = len(inbound.get("in_flight", []))
+        logger.info("Inbound: Fetched %s next_at_42, %s in_flight", next_count, inflight_count)
     except Exception as exc:
         cache.record_error("subway", str(exc))
         cache.record_error("inbound", str(exc))
@@ -290,40 +292,39 @@ def _format_iso_utc(timestamp: Optional[int]) -> Optional[str]:
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _format_tracking_window(config: Dict[str, Any]) -> str:
+def _build_inbound_tracking_window(config: Dict[str, Any]) -> Dict[str, str]:
     inbound = config.get("inbound_tracker", {})
     if not isinstance(inbound, dict):
-        return "Inbound"
+        return {
+            "in_flight": "post-42nd St → pre-Wall St",
+            "note": "Fulton is north of Wall; Fulton ETA should be shorter than Wall ETA when both are present.",
+        }
     tracking = inbound.get("tracking_window", {})
     if not isinstance(tracking, dict):
-        return "Inbound"
+        tracking = {}
 
-    start = tracking.get("start_station") or tracking.get("north_boundary")
-    end = tracking.get("end_station") or tracking.get("south_boundary")
-    include_next = tracking.get("include_next_at_start")
+    start = tracking.get("start_station") or tracking.get("north_boundary") or "42nd St"
+    end = tracking.get("end_station") or tracking.get("south_boundary") or "Wall St"
 
-    if isinstance(start, str) and isinstance(end, str):
-        suffix = ""
-        try:
-            include_next_int = int(include_next)
-        except (TypeError, ValueError):
-            include_next_int = 0
-        if include_next_int > 0:
-            suffix = f" (+{include_next_int} @ start)"
-        return f"{start} → {end}{suffix}"
-
-    return "Inbound"
+    return {
+        "in_flight": f"post-{start} → pre-{end}",
+        "note": "Fulton is north of Wall; Fulton ETA should be shorter than Wall ETA when both are present.",
+    }
 
 
 @app.route("/api/inbound")
 def api_inbound() -> Any:
     entry = cache.get("inbound")
     config = load_config()
+    data = entry.get("data")
+    if not isinstance(data, dict):
+        data = {}
     return jsonify(
         {
-            "trains": entry["data"],
+            "next_at_42": data.get("next_at_42", []),
+            "in_flight": data.get("in_flight", []),
             "last_updated": _format_iso_utc(entry["last_updated"]),
-            "tracking_window": _format_tracking_window(config),
+            "tracking_window": _build_inbound_tracking_window(config),
         }
     )
 

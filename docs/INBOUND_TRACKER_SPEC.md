@@ -1,4 +1,4 @@
-# 🚇 Inbound Train Tracker — Feature Spec for FiDi Dash
+# 🚇 Inbound Train Tracker — Feature Spec for FiDi Dash (4/5 “Pickup Mode”)
 
 **Feature Name:** Inbound 4/5 Train Tracker ("Pickup Mode")
 **Priority:** v1.1 — builds on existing Milestone 1 MTA backend work
@@ -8,94 +8,178 @@
 
 ## Purpose
 
-The user's girlfriend commutes home on the **4 or 5 train**, boarding at either **Grand Central–42nd St** or **14th St–Union Square**. When she texts that she's on the subway, the user needs to see all southbound 4/5 trains currently between **59th St and Brooklyn Bridge** with their predicted arrival times at **Wall St** and **Fulton St**, so he knows when to leave 15 Broad St to meet her.
+When Jackson’s girlfriend is on the **4 or 5 train heading downtown**, Jackson needs to quickly understand:
+
+1) **The next 2 trains arriving at Grand Central–42nd St (southbound)**, including where they are right now and how soon they arrive at 42nd.
+2) **All trains currently “in-flight” after 42nd St and before Wall St**, including where they are right now and their predicted arrivals at **Fulton St** and **Wall St**.
+
+This allows him to time leaving 15 Broad St to meet her.
 
 ---
 
 ## What to Build
 
-### New Backend: Inbound Trip Tracker
+### A) New Backend Module: Inbound Trip Tracker
 
-Add a new module/function to the existing MTA fetcher infrastructure that:
+Add a module/function to the existing MTA fetcher infrastructure that:
 
 1. **Reads the same GTFS-RT feed** already being polled (`gtfs-1234567`). No new feed needed.
 
-2. **Scans all active 4 and 5 train trips** heading southbound (direction = South / direction_id that corresponds to downtown-bound service).
+2. **Scans all active 4 and 5 train trips** heading **southbound** (direction_id corresponding to downtown-bound service).
 
-3. **Filters to trips that have upcoming stop_time_updates at stations in the tracking window.** The 4/5 is an **express** line — it does NOT stop at 51st, 28th, 23rd, or Astor Place. The tracking window is the following stations only, ordered north to south:
+3. **Resolves and uses specific stop IDs** from the static GTFS `stops.txt` (do not guess). Stop IDs below are illustrative only.
 
-   | Station Name | Approximate GTFS Stop ID (Southbound) |
-   |---|---|
-   | 59th St | `631S` |
-   | Grand Central–42nd St | `629S` |
-   | 14th St–Union Square | `626S` |
-   | Brooklyn Bridge–City Hall | `624S` |
+#### Stations (north → south order)
 
-   **Important:** These stop IDs are approximate and must be verified against the MTA's static GTFS `stops.txt` file. The `S` suffix indicates southbound platform. The `nyct-gtfs` library may use a different ID format — confirm during implementation. The developer should resolve and hardcode (or put in config) the correct stop IDs for these 4 stations.
+We care about these stations (southbound platforms):
 
-4. **For each matching trip, extract:**
-   - `trip_id` — unique identifier for this specific train run
-   - `route_id` — "4" or "5"
-   - `current_position` — the *last station the train has departed* or the *next station it will arrive at*, derived from the stop_time_updates. Essentially: what's the southernmost station that has a past timestamp, or the northernmost station with a future timestamp. Present this as a human-readable station name (e.g., "Approaching 14th St" or "At 23rd St").
-   - `wall_st_eta_minutes` — predicted minutes until arrival at Wall St (southbound platform). This is the stop_time_update arrival time for the Wall St stop on this trip, minus current time, converted to minutes. Round down to nearest integer.
-   - `fulton_st_eta_minutes` — same calculation for Fulton St stop.
-   - If a trip does not have a stop_time_update for Wall St or Fulton (meaning it may not stop there — e.g., an express skipping it), **exclude it**.
+- **Grand Central–42nd St** (GCT 42)
+- **14th St–Union Square**
+- **Brooklyn Bridge–City Hall**
+- **Fulton St**
+- **Wall St**
 
-5. **Sort results by `wall_st_eta_minutes` ascending** (soonest arrival first).
+**Important ordering note:** **Fulton is north of Wall**, so for a given train when both are still ahead, **ETA(Wall) should be greater than ETA(Fulton)**.
 
-6. **Cap at 5 trains.** More than that is noise.
+4. **Compute per-trip “where is it now?” (`current_position`)**
 
-### New API Endpoint
+Derive a human-readable `current_position` from stop_time_updates, e.g.:
+- `Approaching 14th St`
+- `At 42nd St`
+- `Departed 42nd St`
+- `Between 14th St and Brooklyn Bridge`
+
+Keep this concise and stable.
+
+---
+
+### B) Two Output Sections (Required)
+
+#### Section 1: “Next 2 trains arriving at 42nd St”
+
+Goal: show the **next 2** southbound 4/5 trains that will arrive at **Grand Central–42nd St**, and help Jackson understand what they are doing right now.
+
+**Selection rules:**
+- Include only trips that have a stop_time_update for **42nd St (southbound)** with an arrival time in the future.
+- Sort by `gct_42_eta_minutes` ascending.
+- **Cap at 2 trains**.
+
+**Per-train fields:**
+- `trip_id`
+- `route_id` ("4" or "5")
+- `current_position`
+- `gct_42_eta_minutes`
+- `fulton_eta_minutes` (optional; see “blanking rules”)
+- `wall_eta_minutes` (optional; see “blanking rules”)
+
+#### Section 2: “In-flight (post‑42nd → pre‑Wall)”
+
+Goal: show **all trains in-flight after 42nd St and before Wall St**.
+
+**Selection rules (the tracking window):**
+- Include only trips that have **already passed/departed 42nd St** (i.e., 42nd St is behind them).
+- Include only trips that have **not yet arrived at Wall St** (i.e., Wall St is still ahead of them).
+
+**Sorting/capping:**
+- Sort by `wall_eta_minutes` ascending (soonest Wall arrival first).
+- Default cap: **max 8 trains** (to keep the panel readable). Make this configurable.
+
+**Per-train fields:**
+- `trip_id`
+- `route_id`
+- `current_position`
+- `fulton_eta_minutes` (optional)
+- `wall_eta_minutes` (optional)
+
+---
+
+### C) ETA / Blanking Rules (Critical)
+
+We display **Fulton then Wall** (in that order) everywhere.
+
+- If a train **has already passed Fulton** (e.g., it is approaching Wall), then **Fulton ETA must be blank/null**.
+- If a train **has already reached Wall**, it should **not appear** in the in-flight section.
+- If a trip does not have a stop_time_update for a station that we’re trying to display, treat that ETA as **blank/null**.
+
+---
+
+## API Endpoint
 
 ```
 GET /api/inbound
 ```
 
-**Response schema:**
+### Response schema
 
 ```json
 {
-  "trains": [
+  "next_at_42": [
     {
       "trip_id": "string",
       "route_id": "4",
-      "current_position": "Approaching 14th St",
-      "wall_st_eta": 6,
-      "fulton_st_eta": 5,
-      "leave_by": 3
+      "current_position": "Approaching 59th St",
+      "gct_42_eta": 3,
+      "fulton_eta": 18,
+      "wall_eta": 21
+    }
+  ],
+  "in_flight": [
+    {
+      "trip_id": "string",
+      "route_id": "5",
+      "current_position": "Between 14th St and Brooklyn Bridge",
+      "fulton_eta": 6,
+      "wall_eta": 9
     }
   ],
   "last_updated": "2026-02-10T08:15:30Z",
-  "tracking_window": "59th St → Brooklyn Bridge"
+  "tracking_window": {
+    "in_flight": "post-42nd St → pre-Wall St",
+    "note": "Fulton is north of Wall; Fulton ETA should be shorter than Wall ETA when both are present."
+  }
 }
 ```
 
-**`leave_by` calculation:** `wall_st_eta - 2` (it's a 2-minute walk from 15 Broad to Wall St station). Floor at 0. This is the number the user actually cares about — "leave in X minutes."
+Notes:
+- JSON field names in code can be `snake_case` or `camelCase`, but be consistent across the project. If the rest of the API uses `snake_case`, keep it.
 
-### New Frontend Panel
+---
 
-Add a new section to the dashboard below the existing subway arrivals (or as a toggleable panel — developer's discretion on layout).
+## Frontend Panel
 
-**Header:** `INBOUND 4/5` (or `PICKUP TRACKER`)
+Add a new section to the dashboard below the existing subway arrivals.
 
-**For each train, display one row:**
+### Header
+- `INBOUND 4/5` (or `PICKUP TRACKER`)
+
+### Subsection 1: “NEXT @ 42ND ST”
+Render **2 rows max**, sorted soonest-first.
+
+Suggested row format (exact typography/layout is flexible, but data must be present):
 
 ```
-④  Approaching 14th St     Wall 6 min  │  Leave in 3 min
-⑤  At 42nd St              Wall 12 min │  Leave in 10 min
-④  Departing 59th St       Wall 18 min │  Leave in 16 min
+④  Approaching 59th St          42nd: 3m   Fulton: 18m   Wall: 21m
+⑤  At 42nd St                  42nd: 6m   Fulton: 21m   Wall: 24m
 ```
 
-**Design rules:**
-- Use the existing MTA color scheme: **4 = green circle, 5 = green circle** (they share the Lexington Ave color).
-- The `leave_by` value is the most important number. Make it the largest/most prominent element in each row. Use the same urgency color coding as existing arrivals: green (≥5 min), yellow (2–4 min), red (≤1 min or 0).
-- `current_position` gives the user a mental map of where the train is. Keep it concise.
-- When no trains are in the window, display: `No inbound 4/5 trains between 59th and Brooklyn Bridge`
-- This section uses the same staleness indicator as the rest of the subway data (it comes from the same feed).
+### Subsection 2: “IN-FLIGHT (42ND → WALL)”
+Render all in-flight rows (cap to max 8) sorted by Wall ETA.
 
-### Configuration
+Suggested row format:
 
-Add to `config.yaml`:
+```
+④  Departed 42nd St             Fulton: 10m  Wall: 13m
+⑤  Approaching Brooklyn Bridge  Fulton: 4m   Wall: 7m
+④  Approaching Wall St          Fulton: —    Wall: 1m
+```
+
+**Blanking requirement:** When Fulton is not applicable (already passed), render it as blank/—.
+
+---
+
+## Configuration
+
+Update `config.yaml`:
 
 ```yaml
 inbound_tracker:
@@ -103,42 +187,54 @@ inbound_tracker:
   label: "INBOUND 4/5"
   routes: ["4", "5"]
   direction: "S"
-  tracking_window:
-    north_boundary: "59th St"        # Stop ID resolved at startup
-    south_boundary: "Brooklyn Bridge" # Stop ID resolved at startup
+
+  # Stops must be resolved from GTFS stops.txt at startup and stored as IDs
+  stops:
+    gct_42: "<STOP_ID>"
+    union_sq_14: "<STOP_ID>"
+    brooklyn_bridge: "<STOP_ID>"
+    fulton: "<STOP_ID>"
+    wall: "<STOP_ID>"
+
+  next_at_42:
+    max_trains: 2
+
+  in_flight:
+    max_trains: 8
+    window: "post-42nd → pre-wall"
+
   destination_stations:
-    - name: "Wall St"
-      walk_time_minutes: 2           # From 15 Broad St
     - name: "Fulton St"
-      walk_time_minutes: 4           # From 15 Broad St
-  max_trains: 5
+      walk_time_minutes: 4
+    - name: "Wall St"
+      walk_time_minutes: 2
 ```
 
 ---
 
 ## What NOT to Build
 
-- **No input mechanism.** This is not Approach 1 (pin a specific train). This is purely a passive display of all inbound trains in the window. No buttons, no text parsing, no phone integration.
-- **No new feeds.** The `gtfs-1234567` feed already contains all 4/5 data.
-- **No trip persistence.** Don't store or remember trip IDs across refreshes. Each poll is a fresh snapshot.
-- **No alerts or notifications.** This is a glanceable display, not a push notification system.
+- No input mechanism (no pinning a specific train).
+- No new feeds (reuse `gtfs-1234567`).
+- No trip persistence across refreshes.
+- No push alerts/notifications.
 
 ---
 
 ## Acceptance Criteria
 
-1. When a southbound 4 or 5 train is between 59th St and Brooklyn Bridge, it appears in the inbound tracker panel with correct position and ETA.
-2. ETAs match the MTA app's predicted arrivals within ±1 minute.
-3. `leave_by` = `wall_st_eta - 2`, floored at 0.
-4. Trains are sorted soonest-first.
-5. The panel auto-refreshes with the same 30-second backend poll cycle — no extra fetching needed.
-6. When no trains are in the window (late night, service disruption), the panel shows an appropriate empty state.
-7. The feature can be disabled via `config.yaml` by setting `enabled: false`.
+1) **Next @ 42nd:** exactly **2** upcoming southbound trains shown (or fewer if fewer exist), with correct `gct_42_eta` and meaningful `current_position`.
+2) **In-flight:** shows trains that have passed 42nd and have not yet arrived at Wall; excludes everything else.
+3) **Fulton-before-Wall ordering:** when both ETAs are present, **Fulton ETA < Wall ETA** (within normal MTA noise).
+4) **Blanking rule:** if the train is approaching Wall / Fulton is already behind it, Fulton is blank/null in API and renders blank/— in UI.
+5) Sorting: `next_at_42` by `gct_42_eta`, `in_flight` by `wall_eta`.
+6) Auto-refresh uses the same backend poll cycle; no extra fetching.
+7) Empty states are clear and non-alarming.
 
 ---
 
 ## Implementation Notes
 
-- This feature **reuses the existing MTA feed polling**. The `gtfs-1234567` feed is already being fetched every 30 seconds for the main subway arrivals panel. The inbound tracker just processes the same feed data differently — scanning for trips on routes 4/5 heading south, filtering to the tracking window, and extracting position + downstream ETAs.
-- The `nyct-gtfs` library provides trip-level access to stop_time_updates, which is exactly what's needed to get per-stop arrival predictions for a given trip.
-- The developer should verify stop IDs from `stops.txt` before hardcoding. Run `grep "Wall St" stops.txt` etc. to find the exact IDs with directional suffixes.
+- Reuse existing polling/parsing via `nyct-gtfs`.
+- Resolve stop IDs from `stops.txt` during implementation and store in config.
+- Keep the backend logic deterministic: selection rules should match the acceptance criteria above.

@@ -44,10 +44,10 @@ subway:
     - J
     directions:
     - code: S
-      label: Downtown
+      label: Broad St
       stop_id: M23S
     - code: N
-      label: Uptown
+      label: Jamaica Ctr
       stop_id: M23N
   - id: rector_1
     name: Rector St
@@ -108,18 +108,24 @@ inbound_tracker:
   - '4'
   - '5'
   direction: S
-  # Time it takes you to get out of the building (elevator, lobby, etc.)
-  building_buffer_minutes: 3
+  stops:
+    gct_42: 631S
+    union_sq_14: 635S
+    brooklyn_bridge: 640S
+    fulton: 418S
+    wall: 419S
   tracking_window:
     start_station: Grand Central - 42 St
     end_station: Wall St
-    include_next_at_start: 2
+  next_at_42:
+    max_trains: 2
+  in_flight:
+    max_trains: 8
   destination_stations:
   - name: Wall St
     walk_time_minutes: 2
   - name: Fulton St
     walk_time_minutes: 4
-  max_trains: 5
 display:
   theme: dark
   orientation: portrait

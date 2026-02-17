@@ -30,21 +30,35 @@ class InboundConfig(TypedDict, total=False):
     label: str
     routes: List[str]
     direction: str
+    stops: Dict[str, str]
     tracking_window: Dict[str, object]
+    next_at_42: Dict[str, object]
+    in_flight: Dict[str, object]
     destination_stations: List[DestinationConfig]
     building_buffer_minutes: int
     max_trains: int
 
 
-class InboundTrain(TypedDict):
+class InboundNextAt42(TypedDict):
     trip_id: str
     route_id: str
     current_position: str
-    wall_st_eta: int
-    fulton_st_eta: Optional[int]
-    leave_by_wall: int
-    leave_by_fulton: Optional[int]
-    window_bucket: str
+    gct_42_eta: int
+    fulton_eta: Optional[int]
+    wall_eta: Optional[int]
+
+
+class InboundInFlight(TypedDict):
+    trip_id: str
+    route_id: str
+    current_position: str
+    fulton_eta: Optional[int]
+    wall_eta: Optional[int]
+
+
+class InboundPayload(TypedDict):
+    next_at_42: List[InboundNextAt42]
+    in_flight: List[InboundInFlight]
 
 
 @dataclass(frozen=True)
@@ -64,10 +78,10 @@ class StopTime:
 @dataclass
 class InboundCacheState:
     timestamp: Optional[int]
-    trains: List[InboundTrain]
+    payload: InboundPayload
 
 
-_CACHE = InboundCacheState(timestamp=None, trains=[])
+_CACHE = InboundCacheState(timestamp=None, payload={"next_at_42": [], "in_flight": []})
 
 _STOPS_CACHE: Optional[List[StopRow]] = None
 
@@ -95,8 +109,8 @@ _LEX_SOUTHBOUND_CORRIDOR_PARENTS: Tuple[int, ...] = (
     638,  # Spring St
     639,  # Canal St
     640,  # Brooklyn Bridge-City Hall
-    419,  # Wall St
     418,  # Fulton St
+    419,  # Wall St
 )
 
 _LEX_SOUTHBOUND_INDEX = {parent: index for index, parent in enumerate(_LEX_SOUTHBOUND_CORRIDOR_PARENTS)}
@@ -260,6 +274,14 @@ def _minutes_until(timestamp: int, now_timestamp: int) -> int:
     return max(0, int((timestamp - now_timestamp) // 60))
 
 
+def _safe_int(value: object, default: int, minimum: int = 0) -> int:
+    try:
+        cast = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, cast)
+
+
 def _parent_station_for_stop_id(
     stop_id: str,
     stop_row_lookup: Mapping[str, StopRow],
@@ -320,18 +342,18 @@ def fetch_inbound_trains(
     config: Mapping[str, object],
     feeds_by_name: Optional[Dict[str, NYCTFeed]] = None,
     now_timestamp: Optional[int] = None,
-) -> List[InboundTrain]:
+) -> InboundPayload:
     inbound_config = _extract_config(config)
     enabled = inbound_config.get("enabled", True)
     if enabled is False:
-        return []
+        return {"next_at_42": [], "in_flight": []}
 
     routes = inbound_config.get("routes", [])
     if not isinstance(routes, list) or not routes:
-        return []
+        return {"next_at_42": [], "in_flight": []}
     route_set = {str(route).strip() for route in routes if str(route).strip()}
     if not route_set:
-        return []
+        return {"next_at_42": [], "in_flight": []}
 
     direction = str(inbound_config.get("direction", "S")).strip().upper()
     if direction not in {"N", "S"}:
@@ -357,10 +379,14 @@ def fetch_inbound_trains(
     if not isinstance(end_station, str) or not end_station.strip():
         raise InboundConfigError("tracking_window must include end_station.")
 
-    try:
-        include_next_at_start_int = max(0, int(include_next_at_start))
-    except (TypeError, ValueError):
-        include_next_at_start_int = 0
+    include_next_at_start_int = _safe_int(include_next_at_start, default=0, minimum=0)
+
+    next_at_42_config = inbound_config.get("next_at_42", {})
+    in_flight_config = inbound_config.get("in_flight", {})
+    if not isinstance(next_at_42_config, dict):
+        next_at_42_config = {}
+    if not isinstance(in_flight_config, dict):
+        in_flight_config = {}
 
     destination_stations = inbound_config.get("destination_stations", [])
     if not isinstance(destination_stations, list):
@@ -380,44 +406,53 @@ def fetch_inbound_trains(
     stop_name_lookup = _build_stop_name_lookup(stops)
     stop_row_lookup = _build_stop_row_lookup(stops)
 
-    start_stop_id = _resolve_stop_id(start_station, direction, stops)
-    end_stop_id = _resolve_stop_id(end_station, direction, stops)
+    stops_config = inbound_config.get("stops", {})
+    if not isinstance(stops_config, dict):
+        stops_config = {}
 
-    destination_map: Dict[str, Tuple[str, int]] = {}
+    def _stop_from_config(key: str) -> str:
+        value = stops_config.get(key)
+        return value.strip() if isinstance(value, str) and value.strip() else ""
+
+    start_stop_id = _stop_from_config("gct_42") or _resolve_stop_id(start_station, direction, stops)
+    end_stop_id = _stop_from_config("wall") or _resolve_stop_id(end_station, direction, stops)
+
+    destination_map: Dict[str, str] = {}
     for destination in destination_stations:
         if not isinstance(destination, dict):
             continue
         name = destination.get("name")
         if not isinstance(name, str) or not name.strip():
             continue
-        walk_time = destination.get("walk_time_minutes", 0)
-        try:
-            walk_time_minutes = int(walk_time)
-        except (TypeError, ValueError):
-            walk_time_minutes = 0
         stop_id = _resolve_stop_id(name, direction, stops)
-        destination_map[_normalize_station_name(name)] = (stop_id, walk_time_minutes)
+        destination_map[_normalize_station_name(name)] = stop_id
 
-    wall_stop_id, wall_walk_time = destination_map.get(_normalize_station_name("Wall St"), ("", 2))
-    fulton_stop_id, fulton_walk_time = destination_map.get(_normalize_station_name("Fulton St"), ("", 4))
+    wall_stop_id = (
+        _stop_from_config("wall")
+        or destination_map.get(_normalize_station_name("Wall St"), "")
+        or _resolve_stop_id("Wall St", direction, stops)
+    )
+    fulton_stop_id = (
+        _stop_from_config("fulton")
+        or destination_map.get(_normalize_station_name("Fulton St"), "")
+        or _resolve_stop_id("Fulton St", direction, stops)
+    )
+    if not wall_stop_id or not fulton_stop_id or not start_stop_id:
+        raise InboundConfigError(
+            "Inbound stops missing: ensure gct_42, Fulton St, and Wall St stop IDs are resolved."
+        )
 
-    if not wall_stop_id or not fulton_stop_id:
-        raise InboundConfigError("destination_stations must include Wall St and Fulton St.")
+    next_at_42_max_default = include_next_at_start_int or 2
+    next_at_42_max = _safe_int(
+        next_at_42_config.get("max_trains"),
+        default=next_at_42_max_default,
+        minimum=0,
+    )
+    in_flight_max_default = _safe_int(inbound_config.get("max_trains"), default=8, minimum=1)
+    in_flight_max = _safe_int(in_flight_config.get("max_trains"), default=in_flight_max_default, minimum=1)
 
-    building_buffer = inbound_config.get("building_buffer_minutes", 3)
-    try:
-        building_buffer_int = max(0, int(building_buffer))
-    except (TypeError, ValueError):
-        building_buffer_int = 3
-
-    max_trains = inbound_config.get("max_trains", 5)
-    try:
-        max_trains_int = max(1, int(max_trains))
-    except (TypeError, ValueError):
-        max_trains_int = 5
-
-    inflight: List[InboundTrain] = []
-    upcoming_at_start: List[Tuple[int, InboundTrain]] = []
+    inflight: List[InboundInFlight] = []
+    upcoming_at_start: List[InboundNextAt42] = []
 
     inbound_debug = os.environ.get("INBOUND_DEBUG") == "1"
 
@@ -438,23 +473,17 @@ def fetch_inbound_trains(
 
         stop_time_lookup = {stop.stop_id: stop.timestamp for stop in stop_times}
         start_time = stop_time_lookup.get(start_stop_id)
-        end_time = stop_time_lookup.get(end_stop_id)
         wall_time = stop_time_lookup.get(wall_stop_id)
         fulton_time = stop_time_lookup.get(fulton_stop_id)
-        if end_time is None or wall_time is None or fulton_time is None:
-            continue
-        if end_time <= now_timestamp:
-            continue
 
-        wall_eta = _minutes_until(wall_time, now_timestamp)
-        if fulton_time <= now_timestamp:
-            fulton_eta = None
-            leave_by_fulton = None
+        wall_eta = _minutes_until(wall_time, now_timestamp) if wall_time and wall_time > now_timestamp else None
+        if fulton_time and fulton_time > now_timestamp:
+            fulton_eta: Optional[int] = _minutes_until(fulton_time, now_timestamp)
         else:
-            fulton_eta = _minutes_until(fulton_time, now_timestamp)
-            leave_by_fulton = max(0, fulton_eta - (building_buffer_int + fulton_walk_time))
+            fulton_eta = None
 
-        leave_by_wall = max(0, wall_eta - (building_buffer_int + wall_walk_time))
+        if fulton_eta is not None and wall_eta is not None and fulton_eta >= wall_eta:
+            fulton_eta = None
 
         current_position = _format_current_position(stop_times, stop_name_lookup, now_timestamp)
         next_stop = _next_stop(stop_times, now_timestamp)
@@ -475,19 +504,10 @@ def fetch_inbound_trains(
         if last_stop_parent is not None and last_stop_parent not in _LEX_SOUTHBOUND_INDEX:
             parent_outside_corridor = True
 
-        train: InboundTrain = {
-            "trip_id": str(trip_id),
-            "route_id": str(route_id),
-            "current_position": current_position,
-            "wall_st_eta": wall_eta,
-            "fulton_st_eta": fulton_eta,
-            "leave_by_wall": leave_by_wall,
-            "leave_by_fulton": leave_by_fulton,
-            "window_bucket": "",
-        }
+        wall_time_valid = wall_time is not None and wall_time > now_timestamp
 
         # Bucket A: trains that have left start_station but have not arrived at end_station yet.
-        if start_time is not None and start_time <= now_timestamp < end_time:
+        if wall_time_valid and start_time is not None and start_time <= now_timestamp < wall_time:
             if inbound_debug and (north_station_flag or parent_outside_corridor):
                 logger.debug(
                     "Inbound inflight (time window) trip %s route %s next_stop=%s last_parent=%s "
@@ -500,12 +520,19 @@ def fetch_inbound_trains(
                     start_parent,
                     end_parent,
                 )
-            train["window_bucket"] = "inflight"
-            inflight.append(train)
+            inflight.append(
+                {
+                    "trip_id": str(trip_id),
+                    "route_id": str(route_id),
+                    "current_position": current_position,
+                    "fulton_eta": fulton_eta,
+                    "wall_eta": wall_eta,
+                }
+            )
             continue
 
         # If the start stop_time_update is missing or inconsistent, fall back to parent-station ordering.
-        if end_time > now_timestamp and _inflight_parent_heuristic(
+        if wall_time_valid and _inflight_parent_heuristic(
             last_stop_parent,
             next_stop_parent,
             start_parent,
@@ -523,43 +550,39 @@ def fetch_inbound_trains(
                     start_parent,
                     end_parent,
                 )
-            train["window_bucket"] = "inflight"
-            inflight.append(train)
+            inflight.append(
+                {
+                    "trip_id": str(trip_id),
+                    "route_id": str(route_id),
+                    "current_position": current_position,
+                    "fulton_eta": fulton_eta,
+                    "wall_eta": wall_eta,
+                }
+            )
             continue
 
         # Bucket B: next trains approaching start_station (optional).
-        if include_next_at_start_int > 0:
-            candidate_start_time = start_time
-            if candidate_start_time is None and next_stop_parent == start_parent and next_stop:
-                candidate_start_time = next_stop.timestamp
-            if candidate_start_time is None or candidate_start_time < now_timestamp:
-                continue
-            start_eta = _minutes_until(candidate_start_time, now_timestamp)
-            candidate = dict(train)
-            candidate["window_bucket"] = "approaching_start"
-            upcoming_at_start.append((start_eta, candidate))
+        if next_at_42_max > 0 and start_time is not None and start_time > now_timestamp:
+            start_eta = _minutes_until(start_time, now_timestamp)
+            upcoming_at_start.append(
+                {
+                    "trip_id": str(trip_id),
+                    "route_id": str(route_id),
+                    "current_position": current_position,
+                    "gct_42_eta": start_eta,
+                    "fulton_eta": fulton_eta,
+                    "wall_eta": wall_eta,
+                }
+            )
 
-    inflight.sort(key=lambda item: item["wall_st_eta"])
-    upcoming_at_start.sort(key=lambda item: item[0])
+    inflight.sort(key=lambda item: item["wall_eta"] if item["wall_eta"] is not None else 999999)
+    upcoming_at_start.sort(key=lambda item: item["gct_42_eta"])
 
-    selected: List[InboundTrain] = []
-    seen: set[str] = set()
+    inflight = inflight[:in_flight_max]
+    upcoming_at_start = upcoming_at_start[:next_at_42_max]
 
-    for train in inflight:
-        if train["trip_id"] in seen:
-            continue
-        seen.add(train["trip_id"])
-        selected.append(train)
-
-    for _, train in upcoming_at_start[:include_next_at_start_int]:
-        if train["trip_id"] in seen:
-            continue
-        seen.add(train["trip_id"])
-        selected.append(train)
-
-    selected.sort(key=lambda item: item["wall_st_eta"])
-    selected = selected[:max_trains_int]
+    payload: InboundPayload = {"next_at_42": upcoming_at_start, "in_flight": inflight}
 
     _CACHE.timestamp = now_timestamp
-    _CACHE.trains = list(selected)
-    return selected
+    _CACHE.payload = dict(payload)
+    return payload

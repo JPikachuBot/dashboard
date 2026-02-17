@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Any, Dict, List, Optional, TypedDict
+import copy
+from typing import Any, Dict, Optional, TypedDict
 
 
 class CacheEntry(TypedDict):
-    data: List[Dict[str, Any]]
+    data: Any
     last_updated: Optional[int]
     last_error: Optional[str]
     last_error_at: Optional[int]
@@ -31,11 +32,11 @@ class Cache:
             }
         return self._store[key]
 
-    def set(self, key: str, data: List[Dict[str, Any]]) -> None:
+    def set(self, key: str, data: Any) -> None:
         now = int(time.time())
         with self._lock:
             entry = self._ensure_key(key)
-            entry["data"] = list(data)
+            entry["data"] = copy.deepcopy(data)
             entry["last_updated"] = now
             entry["last_error"] = None
             entry["last_error_at"] = None
@@ -45,7 +46,7 @@ class Cache:
         with self._lock:
             entry = self._ensure_key(key)
             return {
-                "data": list(entry["data"]),
+                "data": copy.deepcopy(entry["data"]),
                 "last_updated": entry["last_updated"],
                 "last_error": entry["last_error"],
                 "last_error_at": entry["last_error_at"],
@@ -65,7 +66,7 @@ class Cache:
         with self._lock:
             return {
                 key: {
-                    "data": list(entry["data"]),
+                    "data": copy.deepcopy(entry["data"]),
                     "last_updated": entry["last_updated"],
                     "last_error": entry["last_error"],
                     "last_error_at": entry["last_error_at"],
