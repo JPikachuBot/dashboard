@@ -188,8 +188,26 @@ section {
     text-transform: uppercase;
 }
 
+.direction-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.direction-sublabel {
+    font-size: 16px;
+    color: var(--color-text-muted);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
 .station-side.right .direction-label {
     justify-self: end;
+    text-align: right;
+}
+
+.station-side.right .direction-stack {
+    align-items: flex-end;
     text-align: right;
 }
 

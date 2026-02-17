@@ -448,7 +448,10 @@ function buildSubwayMarkupFromConfig(arrivals, stationBlocks) {
             <div class="station-group">
                 <div class="station-row station-header-row">
                     <div class="station-side left">
-                        <span class="direction-label">${escapeHtml(leftDirection.label || 'Uptown')}</span>
+                        <div class="direction-stack">
+                            <span class="direction-label">DOWNTOWN</span>
+                            <span class="direction-sublabel">${escapeHtml(leftDirection.label || '')}</span>
+                        </div>
                     </div>
                     <div class="station-center">
                         <div class="line-badges">${lineBadges}</div>
@@ -460,7 +463,10 @@ function buildSubwayMarkupFromConfig(arrivals, stationBlocks) {
                         </div>
                     </div>
                     <div class="station-side right">
-                        <span class="direction-label">${escapeHtml(rightDirection.label || 'Downtown')}</span>
+                        <div class="direction-stack">
+                            <span class="direction-label">UPTOWN</span>
+                            <span class="direction-sublabel">${escapeHtml(rightDirection.label || '')}</span>
+                        </div>
                     </div>
                 </div>
                 ${rows}
